@@ -109,23 +109,46 @@ double mp4(void)
     for(int j=0; j < no; j++)
       for(int k=0; k < no; k++)
         for(int l=0; l < no; l++)
-          Ioooo[i][j][k][l] += t2_1[k][l][a][b] * ints[k][l][c+no][d+no];
+          for(int c=0; c < nv; c++)
+            for(int d=0; d < nv; d++)
+              Ioooo[i][j][k][l] += t2_1[i][j][c][d] * ints[k][l][c+no][d+no];
 
   double ****Ioovv_a = init_4d_array(no, no, nv, nv);
   double ****Ioovv_b = init_4d_array(no, no, nv, nv);
   for(int j=0; j < no; j++)
     for(int k=0; k < no; k++)
       for(int b=0; b < nv; b++)
-        for(int c=0; c < nv; c++) {
-          Ioovv_a[j][k][b][c] += (t2_1[j][l][b][d] - t2_1[l][j][b][d]) * L[k][l][c+no][d+no];
-          Ioovv_b[j][k][b][c] += t2_1[l][j][b][d] * ints[k][l][c+no][d+no];
-        }
+        for(int c=0; c < nv; c++)
+          for(int l=0; l < no; l++)
+            for(int d=0; d < nv; d++) {
+              Ioovv_a[j][k][b][c] += (t2_1[j][l][b][d] - t2_1[l][j][b][d]) * L[k][l][c+no][d+no];
+              Ioovv_b[j][k][b][c] += t2_1[l][j][b][d] * ints[k][l][c+no][d+no];
+            }
 
   double ****Ioovv_c = init_4d_array(no, no, nv, nv);
-  for(
-  double **Ioo = block_matrix(no, no);
-  double **Ivv = block_matrix(nv, nv);
+  for(int i=0; i < no; i++)
+    for(int k=0; k < no; k++)
+      for(int b=0; b < nv; b++)
+        for(int d=0; d < nv; d++)
+          for(int c=0; c < nv; c++)
+            for(int l=0; l < no; l++)
+              Ioovv_c[i][k][b][d] += t2_1[l][i][b][c] * ints[k][l][c+no][d+no];
 
+  double **Ioo = block_matrix(no, no);
+  for(int j=0; j < no; j++)
+    for(int k=0; k < no; k++)
+      for(int l=0; l < no; l++)
+        for(int c=0; c < nv; c++)
+          for(int d=0; d < nv; d++)
+            Ioo[j][k] += t2_1[l][j][c][d] * L[l][k][c+no][d+no];
+
+  double **Ivv = block_matrix(nv, nv);
+  for(int b=0; b < nv; b++)
+    for(int c=0; c < nv; c++)
+      for(int k=0; k < no; k++)
+        for(int l=0; l < no; l++)
+          for(int d=0; d < nv; d++)
+            Ivv[b][c] += t2_1[k][l][b][d] * L[k][l][c+no][d+no];
 
   double ****S = init_4d_array(no, no, nv, nv);
   double ****D = init_4d_array(no, no, nv, nv);
@@ -168,10 +191,33 @@ double mp4(void)
                 T[i][j][a][b] -= ( t3_2[i][k][l][a][b][c] * L[k][l][j][c+no]
                                  - t3_2[l][k][i][a][b][c] * ints[k][l][j][c+no] );
 
-//          for(int k=0; k < no; k++)
-//            for(int l=0; l < no; l++)
-//              Q[i][j][a][b] += 0.5 * t2_1[
+          for(int k=0; k < no; k++)
+            for(int l=0; l < no; l++)
+              Q[i][j][a][b] += 0.5 * t2_1[k][l][a][b] * Ioooo[i][j][k][l];
+
+          for(int c=0; c < nv; c++)
+            for(int k=0; k < no; k++) {
+              Q[i][j][a][b] += t2_1[i][k][a][c] * Ioovv_a[j][k][b][c];
+              Q[i][j][a][b] += 0.5 * t2_1[k][i][a][c] * Ioovv_b[j][k][b][c];
+            }
+
+          for(int d=0; d < nv; d++)
+            for(int k=0; k < no; k++)
+              Q[i][j][a][b] += 0.5 * t2_1[k][j][a][d] * Ioovv_c[i][k][b][d];
+
+          for(int k=0; k < no; k++)
+            Q[i][j][a][b] -= t2_1[i][k][a][b] * Ioo[j][k];
+
+          for(int c=0; c < nv; c++)
+            Q[i][j][a][b] -= t2_1[i][j][a][c] * Ivv[b][c];
         }
+
+  free_4d_array(Ioooo, no, no, no);
+  free_4d_array(Ioovv_a, no, no, nv);
+  free_4d_array(Ioovv_b, no, no, nv);
+  free_4d_array(Ioovv_c, no, no, nv);
+  free_block(Ioo);
+  free_block(Ivv);
 
   double emp4_s = 0.0;
   double emp4_d = 0.0;
@@ -184,7 +230,7 @@ double mp4(void)
           emp4_s += l2_1[i][j][a][b] * S[i][j][a][b];
           emp4_d += l2_1[i][j][a][b] * D[i][j][a][b];
           emp4_t += l2_1[i][j][a][b] * T[i][j][a][b];
-//          emp4_q += (1 + (a==b) * (i==j)) * t2_1[i][j][a][b] * S[i][j][a][b];
+          emp4_q += l2_1[i][j][a][b] * Q[i][j][a][b];
         }
 
   free_4d_array(S, no, no, nv);
