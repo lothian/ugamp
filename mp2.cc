@@ -2,8 +2,10 @@
 #include <cstdlib>
 #include <cmath>
 #include <string>
+#include <libmints/mints.h>
 
 #include "MOInfo.h"
+#include "Params.h"
 #define EXTERN
 #include "globals.h"
 
@@ -37,6 +39,25 @@ double mp2(void)
       for(int a=0; a < nv; a++)
         for(int b=0; b < nv; b++)
           emp2 += t2_1[i][j][a][b] * L[i][j][a+no][b+no];
+
+  // build one-pdm
+  if(params.fvno == true) {
+    SharedMatrix Pa(new Matrix("MP2 VV Density", nv, nv));
+    double **Pap = Pa->pointer();
+    for(int a=0; a < nv; a++)
+      for(int b=0; b < nv; b++)
+        for(int i=0; i < no; i++)
+          for(int j=0; j < no; j++)
+            for(int c=0; c < nv; c++)
+              Pap[a][b] += l2_1[i][j][a][c] * t2_1[i][j][b][c];
+
+    Pa->print();
+    SharedMatrix Pa_V(new Matrix("MP2 VV Density Eigenvectors", nv, nv));
+    SharedVector Pa_v(new Vector("MP2 VV Density Eigenvalues", nv));
+    Pa->diagonalize(Pa_V, Pa_v);
+    Pa_V->print();
+    Pa_v->print();
+  }
 
   return emp2;
 }

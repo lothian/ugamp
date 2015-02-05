@@ -31,12 +31,13 @@ int read_options(std::string name, Options& options)
   if(name == "UGAMP" || options.read_globals()) {
     options.add_int("PRINT", 1);
     options.add_str("REFERENCE", "RHF");
-    options.add_str("WFN", "CCSD");
+    options.add_str("WFN", "CCSD", "MP2 MP3 MP4 CCSD CCSD_T");
     options.add_str("DERTYPE", "NONE");
     options.add_int("MAXITER", 100);
     options.add_bool("DIIS", true);
     options.add_double("R_CONVERGENCE", 1e-7);
     options.add_bool("OOC", false);
+    options.add_bool("FVNO", false);
   }
 
   return true;
@@ -54,6 +55,7 @@ PsiReturnType ugamp(Options& options)
   params.do_diis = options.get_bool("DIIS");
   params.maxiter = options.get_int("MAXITER");
   params.ooc = options.get_bool("OOC");
+  params.fvno = options.get_bool("FVNO");
 
   outfile->Printf("\tWave function  = %s\n", params.wfn.c_str());
   outfile->Printf("\tReference      = %s\n", params.ref.c_str());
@@ -71,19 +73,23 @@ PsiReturnType ugamp(Options& options)
   integrals();
   denom();
 
-  moinfo.emp2 = mp2();
-  outfile->Printf("\tEMP2 (corr)    = %20.15f\n", moinfo.emp2);
-  outfile->Printf("\tEMP2           = %20.15f\n", moinfo.emp2 + moinfo.escf);
+  if(params.wfn == "MP2" || params.wfn == "MP3" || params.wfn == "MP4") {
+    moinfo.emp2 = mp2();
+    outfile->Printf("\tEMP2 (corr)    = %20.15f\n", moinfo.emp2);
+    outfile->Printf("\tEMP2           = %20.15f\n", moinfo.emp2 + moinfo.escf);
+  }
+  else if(params.wfn == "MP3" || params.wfn == "MP4") {
+    moinfo.emp3 = mp3();
+    outfile->Printf("\tEMP3 (corr)    = %20.15f\n", moinfo.emp3);
+    outfile->Printf("\tEMP3           = %20.15f\n", moinfo.emp2 + moinfo.emp3 + moinfo.escf);
+  }
+  else if(params.wfn == "MP4") {
+    moinfo.emp4 = mp4();
+    outfile->Printf("\tEMP4 (corr)    = %20.15f\n", moinfo.emp4);
+    outfile->Printf("\tEMP3           = %20.15f\n", moinfo.emp2 + moinfo.emp3 + moinfo.emp4 + moinfo.escf);
+  }
 
-  moinfo.emp3 = mp3();
-  outfile->Printf("\tEMP3 (corr)    = %20.15f\n", moinfo.emp3);
-  outfile->Printf("\tEMP3           = %20.15f\n", moinfo.emp2 + moinfo.emp3 + moinfo.escf);
-
-  moinfo.emp4 = mp4();
-  outfile->Printf("\tEMP4 (corr)    = %20.15f\n", moinfo.emp4);
-  outfile->Printf("\tEMP3           = %20.15f\n", moinfo.emp2 + moinfo.emp3 + moinfo.emp4 + moinfo.escf);
-
-  cleanup();
+//  cleanup();
 
   return Success;
 }

@@ -13,6 +13,7 @@ struct Params {
     double convergence;
     int do_diis;        // DIIS boolean
     int ooc;            // out-of-core boolean
+    int fvno;           // frozen virtual natural orbitals
 };
 
 }} // namespace devel::ugamp

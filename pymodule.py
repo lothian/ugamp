@@ -27,6 +27,12 @@ def run_ugamp(name, **kwargs):
             psi4.set_global_option('WFN', 'CCSD')
         elif (kwargs['wfn'] == 'ccsd(t)'):
             psi4.set_global_option('WFN', 'CCSD_T')
+        elif (kwargs['wfn'] == 'mp2'):
+            psi4.set_global_option('WFN', 'MP2')
+        elif (kwargs['wfn'] == 'mp3'):
+            psi4.set_global_option('WFN', 'MP3')
+#        elif (kwargs['wfn'] == 'mp4'):
+#            psi4.set_global_option('WFN', 'MP4')
     scf_helper(name, **kwargs)
     psi4.transqt2()
     returnvalue = psi4.plugin('ugamp.so')
