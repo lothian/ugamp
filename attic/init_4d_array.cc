@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-namespace psi {
+namespace psi { namespace ugamp {
 
 double ****init_4d_array(int p, int q, int r, int s)
 {
@@ -47,6 +47,5 @@ void free_4d_array(double ****A, int p, int q, int r)
   free(A);
 
 }
-
-} // namespace psi
+}} // namespace psi::ugamp
 

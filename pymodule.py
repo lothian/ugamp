@@ -22,6 +22,9 @@ def run_ugamp(name, **kwargs):
     kwargs = p4util.kwargs_lower(kwargs)
 
     # Your plugin's psi4 run sequence goes here
+    psi4.set_global_option('WFN', 'CCSD')
+    scf_helper(name, **kwargs)
+    psi4.transqt2()
     if ('wfn' in kwargs):
         if (kwargs['wfn'] == 'ccsd'):
             psi4.set_global_option('WFN', 'CCSD')
@@ -31,10 +34,8 @@ def run_ugamp(name, **kwargs):
             psi4.set_global_option('WFN', 'MP2')
         elif (kwargs['wfn'] == 'mp3'):
             psi4.set_global_option('WFN', 'MP3')
-#        elif (kwargs['wfn'] == 'mp4'):
-#            psi4.set_global_option('WFN', 'MP4')
-    scf_helper(name, **kwargs)
-    psi4.transqt2()
+        elif (kwargs['wfn'] == 'mp4'):
+            psi4.set_global_option('WFN', 'MP4')
     returnvalue = psi4.plugin('ugamp.so')
     psi4.set_variable('CURRENT ENERGY', returnvalue)
 

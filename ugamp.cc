@@ -1,29 +1,18 @@
+#include "mbpt.h"
+
 #include <libplugin/plugin.h>
 #include <psi4-dec.h>
 #include <libparallel/parallel.h>
 #include <liboptions/liboptions.h>
-#include <libciomr/libciomr.h>
 #include <libmints/mints.h>
 #include <libpsio/psio.hpp>
-#include "MOInfo.h"
-#include "Params.h"
 #include "globals.h"
-#include "libparallel/ParallelPrinter.h"
 
 INIT_PLUGIN
 
 using namespace boost;
 
 namespace psi { namespace ugamp {
-
-void title(void);
-void get_moinfo(boost::shared_ptr<Wavefunction> wfn, boost::shared_ptr<Chkpt> chkpt);
-void integrals(void);
-void denom(void);
-void cleanup(void);
-double mp2(void);
-double mp3(void);
-double mp4(void);
 
 extern "C" 
 int read_options(std::string name, Options& options)
@@ -46,63 +35,36 @@ int read_options(std::string name, Options& options)
 extern "C" 
 PsiReturnType ugamp(Options& options)
 {
-  title();
-  params.ref = options.get_str("REFERENCE");
-  params.wfn = options.get_str("WFN");
-  if(options.get_str("DERTYPE") == "NONE") params.dertype = 0;
-  else if(options.get_str("DERTYPE") == "FIRST") params.dertype = 1;
-  params.convergence = options.get_double("R_CONVERGENCE");
-  params.do_diis = options.get_bool("DIIS");
-  params.maxiter = options.get_int("MAXITER");
-  params.ooc = options.get_bool("OOC");
-  params.fvno = options.get_bool("FVNO");
-
-  outfile->Printf("\tWave function  = %s\n", params.wfn.c_str());
-  outfile->Printf("\tReference      = %s\n", params.ref.c_str());
-  outfile->Printf("\tComputation    = %s\n", params.dertype ? "Gradient" : "Energy");
-  outfile->Printf("\tMaxiter        = %d\n", params.maxiter);
-  outfile->Printf("\tConvergence    = %3.1e\n", params.convergence);
-  outfile->Printf("\tDIIS           = %s\n", params.do_diis ? "Yes" : "No");
-
   boost::shared_ptr<PSIO> psio(_default_psio_lib_);
-  boost::shared_ptr<Wavefunction> wfn = Process::environment.wavefunction();
-  if(!wfn) throw PSIEXCEPTION("SCF has not been run yet!");
+  boost::shared_ptr<Wavefunction> ref = Process::environment.wavefunction();
+  if(!ref) throw PSIEXCEPTION("SCF has not been run yet!");
+  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(ref));
+  boost::shared_ptr<MBPT> mbpt(new MBPT(ref, H, options, psio));
+
   boost::shared_ptr<Chkpt> chkpt(new Chkpt(psio, PSIO_OPEN_OLD));
 
-  get_moinfo(wfn, chkpt);
-  integrals();
-  denom();
-
-  if(params.wfn == "MP2" || params.wfn == "MP3" || params.wfn == "MP4") {
-    moinfo.emp2 = mp2();
-    outfile->Printf("\tEMP2 (corr)    = %20.15f\n", moinfo.emp2);
-    outfile->Printf("\tEMP2           = %20.15f\n", moinfo.emp2 + moinfo.escf);
-  }
-  else if(params.wfn == "MP3" || params.wfn == "MP4") {
-    moinfo.emp3 = mp3();
-    outfile->Printf("\tEMP3 (corr)    = %20.15f\n", moinfo.emp3);
-    outfile->Printf("\tEMP3           = %20.15f\n", moinfo.emp2 + moinfo.emp3 + moinfo.escf);
-  }
-  else if(params.wfn == "MP4") {
-    moinfo.emp4 = mp4();
-    outfile->Printf("\tEMP4 (corr)    = %20.15f\n", moinfo.emp4);
-    outfile->Printf("\tEMP3           = %20.15f\n", moinfo.emp2 + moinfo.emp3 + moinfo.emp4 + moinfo.escf);
+  double eref=0.0, emp2=0.0, emp3=0.0, emp4=0.0;
+  eref = mbpt->reference_energy();
+ 
+  if(mbpt->wfn() == "MP2" || mbpt->wfn() == "MP3" || mbpt->wfn() == "MP4") {
+    emp2 = mbpt->mp2(chkpt);
+    outfile->Printf("\tEMP2 (corr)    = %20.15f\n", emp2);
+    outfile->Printf("\tEMP2           = %20.15f\n", emp2 + eref);
   }
 
-//  cleanup();
+  if(mbpt->wfn() == "MP3" || mbpt->wfn() == "MP4") {
+    emp3 = mbpt->mp3();
+    outfile->Printf("\tEMP3 (corr)    = %20.15f\n", emp3);
+    outfile->Printf("\tEMP3           = %20.15f\n", emp2 + emp3 + eref);
+  }
+
+  if(mbpt->wfn() == "MP4") {
+    emp4 = mbpt->mp4();
+    outfile->Printf("\tEMP4 (corr)    = %20.15f\n", emp4);
+    outfile->Printf("\tEMP3           = %20.15f\n", emp2 + emp3 + emp4 + eref);
+  }
 
   return Success;
-}
-
-void title(void)
-{
-  outfile->Printf("\n");
-  outfile->Printf("\t\t\t**************************\n");
-  outfile->Printf("\t\t\t*                        *\n");
-  outfile->Printf("\t\t\t*         UGA-MP         *\n");
-  outfile->Printf("\t\t\t*                        *\n");
-  outfile->Printf("\t\t\t**************************\n");
-  outfile->Printf("\n");
 }
 
 }} // End namespaces

@@ -1,6 +1,8 @@
 #ifndef _psi_psi_ugamp_moinfo_h
 #define _psi_psi_ugamp_moinfo_h
 
+#include <libmints/mints.h>
+
 namespace psi { namespace ugamp {
 
 struct MOInfo {
