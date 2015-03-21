@@ -26,3 +26,8 @@
 *.exe
 *.out
 *.app
+
+Makefile
+output.dat
+psi.timer.dat
+psi.32
