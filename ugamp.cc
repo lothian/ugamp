@@ -61,7 +61,7 @@ PsiReturnType ugamp(Options& options)
   if(mbpt->wfn() == "MP4") {
     emp4 = mbpt->mp4();
     outfile->Printf("\tEMP4 (corr)    = %20.15f\n", emp4);
-    outfile->Printf("\tEMP3           = %20.15f\n", emp2 + emp3 + emp4 + eref);
+    outfile->Printf("\tEMP4           = %20.15f\n", emp2 + emp3 + emp4 + eref);
   }
 
   return Success;
