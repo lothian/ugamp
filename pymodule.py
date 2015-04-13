@@ -24,7 +24,7 @@ def run_ugamp(name, **kwargs):
     # Your plugin's psi4 run sequence goes here
     psi4.set_global_option('WFN', 'CCSD')
     scf_helper(name, **kwargs)
-    psi4.transqt2()
+#    psi4.transqt2()
     if ('wfn' in kwargs):
         if (kwargs['wfn'] == 'ccsd'):
             psi4.set_global_option('WFN', 'CCSD')
@@ -37,7 +37,7 @@ def run_ugamp(name, **kwargs):
         elif (kwargs['wfn'] == 'mp4'):
             psi4.set_global_option('WFN', 'MP4')
     returnvalue = psi4.plugin('ugamp.so')
-    psi4.set_variable('CURRENT ENERGY', returnvalue)
+#    psi4.set_variable('CURRENT ENERGY', returnvalue)
 
 def run_ugamp_gradient(name, **kwargs):
     psi4.set_global_option('DERTYPE', 'FIRST')

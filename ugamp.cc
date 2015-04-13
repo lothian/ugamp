@@ -6,6 +6,8 @@
 #include <liboptions/liboptions.h>
 #include <libmints/mints.h>
 #include <libpsio/psio.hpp>
+#include <libtrans/integraltransform.h>
+
 #include "globals.h"
 
 INIT_PLUGIN
@@ -38,7 +40,15 @@ PsiReturnType ugamp(Options& options)
   boost::shared_ptr<PSIO> psio(_default_psio_lib_);
   boost::shared_ptr<Wavefunction> ref = Process::environment.wavefunction();
   if(!ref) throw PSIEXCEPTION("SCF has not been run yet!");
-  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(ref));
+
+  // Make sure this isn't an open-shell system
+  for(int h=0; h < ref->nirrep(); h++)
+    if(ref->soccpi()[h]) throw PSIEXCEPTION("UGACC is for closed-shell systems only.");
+
+  std::vector<boost::shared_ptr<MOSpace> > spaces;
+  spaces.push_back(MOSpace::all);
+
+  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(psio, ref, spaces));
   boost::shared_ptr<MBPT> mbpt(new MBPT(ref, H, options, psio));
 
   boost::shared_ptr<Chkpt> chkpt(new Chkpt(psio, PSIO_OPEN_OLD));

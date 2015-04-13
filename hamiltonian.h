@@ -3,12 +3,13 @@
 
 #include <boost/shared_ptr.hpp>
 #include <libmints/mints.h>
+#include <libtrans/integraltransform.h>
 
 namespace psi {
 
 class Hamiltonian {
 public:
-  Hamiltonian(boost::shared_ptr<Wavefunction> reference);
+  Hamiltonian(boost::shared_ptr<PSIO>, boost::shared_ptr<Wavefunction>, std::vector<boost::shared_ptr<MOSpace> >);
   virtual ~Hamiltonian();
 //  Hamiltonian(const boost::shared_ptr<Hamiltonian> &H);
 
@@ -18,7 +19,6 @@ public:
 
 protected:
   int nmo_;
-  int no_;
   int nact_;
   int nfzc_;
   int nfzv_;
