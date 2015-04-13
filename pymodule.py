@@ -24,7 +24,7 @@ def run_ugamp(name, **kwargs):
     # Your plugin's psi4 run sequence goes here
     psi4.set_global_option('WFN', 'CCSD')
     scf_helper(name, **kwargs)
-#    psi4.transqt2()
+    psi4.transqt2()
     if ('wfn' in kwargs):
         if (kwargs['wfn'] == 'ccsd'):
             psi4.set_global_option('WFN', 'CCSD')
