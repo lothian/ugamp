@@ -18,23 +18,24 @@ set {
 #  r_convergence 1e-15
 #  e_convergence 1e-15
   ooc true
-#  fvno true
+  fvno true
   omega [589, nm]
   gauge both
 }
 
-energy('ugamp',wfn='mp4')
+#energy('ccsd')
+energy('ugamp',wfn='mp2')
 
 # Now run a ccresponse computation
-#psi4.set_global_option('WFN', 'CCSD')
-#psi4.set_global_option('DERTYPE', 'RESPONSE')
-#psi4.set_global_option('PROPERTY', 'ROTATION')
+psi4.set_global_option('WFN', 'CCSD')
+psi4.set_global_option('DERTYPE', 'RESPONSE')
+psi4.set_global_option('PROPERTY', 'ROTATION')
 #psi4.ccsort()
-#mints = psi4.MintsHelper()
-#mints.integrals()
-#psi4.transqt2()
-#psi4.ccsort()
-#psi4.ccenergy()
+mints = psi4.MintsHelper()
+mints.integrals()
+psi4.transqt2()
+psi4.ccsort()
+psi4.ccenergy()
 
 #psi4.cchbar()
 #psi4.cclambda()
