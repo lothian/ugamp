@@ -1,7 +1,7 @@
 # PYTHONPATH must include directory above plugin directory.
 #     Define either externally or here, then import plugin.
 sys.path.insert(0, './..')
-import ugamp
+import ugamp2
 
 molecule {
 0 1
@@ -15,8 +15,9 @@ symmetry c1
 set {
   freeze_core true
   basis cc-pVDZ
-#  r_convergence 1e-15
-#  e_convergence 1e-15
+  r_convergence 1e-15
+  e_convergence 1e-15
+  maxiter 1000
   ooc true
   fvno true
   omega [589, nm]
@@ -24,20 +25,18 @@ set {
 #  frozen_uocc [1]
 }
 
-#energy('ccsd')
-energy('ugamp',wfn='mp2')
+energy('ccsd')
+#energy('ugamp2',wfn='mp2')
 
 # Now run a ccresponse computation
-psi4.set_global_option('WFN', 'CCSD')
+#psi4.set_global_option('WFN', 'CCSD')
 #psi4.set_global_option('DERTYPE', 'RESPONSE')
 #psi4.set_global_option('PROPERTY', 'ROTATION')
+#mints = psi4.MintsHelper()
+#mints.integrals()
+#psi4.transqt2()
 #psi4.ccsort()
-#psi4.set_global_option('PROPERTY', 'ROTATION')
-mints = psi4.MintsHelper()
-mints.integrals()
-psi4.transqt2()
-psi4.ccsort()
-psi4.ccenergy()
+#psi4.ccenergy()
 
 #psi4.cchbar()
 #psi4.cclambda()

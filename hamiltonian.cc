@@ -5,69 +5,83 @@
 #include <psifiles.h>
 #include <libciomr/libciomr.h>
 #include <libqt/qt.h>
+#include <libtrans/integraltransform.h>
+#include <libdpd/dpd.h>
+
+#define ID(x) ints.DPD_ID(x)
 
 namespace psi {
 
-#define IOFF_MAX 32641
-#define INDEX(i,j) ((i>j) ? (ioff[(i)]+(j)) : (ioff[(j)]+(i)))
-
-Hamiltonian::Hamiltonian(boost::shared_ptr<Wavefunction> reference)
+Hamiltonian::Hamiltonian(boost::shared_ptr<PSIO> psio, boost::shared_ptr<Wavefunction> ref, std::vector<boost::shared_ptr<MOSpace> > spaces)
 {
-
-  nmo_ = reference->nmo();
-  nfzc_ = reference->nfrzc();
-  no_ = 0;
+  nmo_ = ref->nmo();
+  nfzc_ = ref->nfrzc();
   nfzv_ = 0;
-  for(int i=0; i < reference->nirrep(); i++) {
-    no_ += reference->doccpi()[i] - reference->frzcpi()[i];
-    nfzv_ += reference->frzvpi()[i];
-  }
+  for(int i=0; i < ref->nirrep(); i++) 
+    nfzv_ += ref->frzvpi()[i];
   nact_ = nmo_ - nfzc_ - nfzv_;
 
-/*
-  outfile->Printf("\n\tHamiltonian Parameters:\n");
-  outfile->Printf("\t-------------------------\n");
-  outfile->Printf("\tNumber of MOs           = %d\n", nmo_);
-  outfile->Printf("\tNumber of active MOs    = %d\n", nact_);
-  outfile->Printf("\tNumber of active occ    = %d\n", no_);
-  outfile->Printf("\tNumber of frozen occ    = %d\n", nfzc_);
-*/
-
-  int *ioff = new int[IOFF_MAX];
-  ioff[0] = 0;
-  for(int i=0; i < IOFF_MAX; i++) ioff[i] = ioff[i-1] + i;
-
-  int noei_all = nmo_*(nmo_+1)/2;
-  int noei = nact_*(nact_+1)/2;
-  double *scratch = new double[noei_all];
-  std::memset(static_cast<void*>(scratch), '\0', noei_all*sizeof(double));
-  double *oei = new double[noei];
-  std::memset(static_cast<void*>(oei), '\0', noei*sizeof(double));
-  iwl_rdone(PSIF_OEI, PSIF_MO_FZC, scratch, noei_all, 0, 0, "outfile");
-  filter(scratch, oei, ioff, nmo_, nfzc_, nfzv_);
-
-  int ntei = noei*(noei+1)/2;
-  double *tei = new double[ntei];
-  std::memset(static_cast<void*>(tei), '\0', ntei*sizeof(double));
-  struct iwlbuf Buf;
-  iwl_buf_init(&Buf, PSIF_MO_TEI, 1e-16, 1, 1);
-  iwl_buf_rd_all(&Buf, tei, ioff, ioff, 0, ioff, 0, "outfile");
-  iwl_buf_close(&Buf, 1);
-
-  int no = no_;
   int nact = nact_;
 
-  ints_ = init_4d_array(nact, nact, nact, nact);
-  for(int p=0; p < nact; p++)
-    for(int r=0; r < nact; r++) {
-      int pr = INDEX(p,r);
-      for(int q=0; q < nact; q++)
-        for(int s=0; s < nact; s++) {
-          int qs = INDEX(q,s);
-          int prqs = INDEX(pr,qs);
-          ints_[p][q][r][s] = tei[prqs];
-        }
+  // Prepare Fock matrix in MO basis
+  SharedMatrix Fa = ref->Fa()->clone();
+  SharedMatrix Ca = ref->Ca();
+  Fa->transform(Ca);
+
+  int *map = init_int_array(nmo_); // Translates from Pitzer (including frozen docc) to QT
+  reorder_qt((int *) ref->doccpi(), (int *) ref->soccpi(), (int *) ref->frzcpi(), (int *) ref->frzvpi(), 
+             map, (int *) ref->nmopi(), ref->nirrep());
+
+  fock_ = block_matrix(nact, nact);
+  int mo_offset=0;
+  for(int h=0; h < ref->nirrep(); h++) {
+    int nmo = ref->nmopi()[h]; int nfv = ref->frzvpi()[h]; int nfc = ref->frzcpi()[h];
+    for(int p=nfc; p < nmo-nfv; p++) {
+      for(int q=nfc; q < nmo-nfv; q++) {
+      int P = map[p+mo_offset]; int Q = map[q+mo_offset];
+      fock_[P-nfzc_][Q-nfzc_] = Fa->get(h,p,q);
+      }
     }
+    mo_offset += nmo;
+  }
+  free(map);
+
+  // Use reorder_qt() to generate a new mapping array w/o frozen core or virtual orbitals
+  int *doccpi = init_int_array(ref->nirrep());
+  int *nmopi = init_int_array(ref->nirrep());
+  int *null = init_int_array(ref->nirrep());
+  for(int h=0; h < ref->nirrep(); h++) {
+    doccpi[h] = ref->doccpi()[h] - ref->frzcpi()[h];
+    nmopi[h] = ref->nmopi()[h] - ref->frzcpi()[h] - ref->frzvpi()[h];
+  }
+  int *map2 = init_int_array(nact); // Translates from Pitzer (w/o frozen MOs) to QT
+  reorder_qt(doccpi, (int *) ref->soccpi(), null, null, map2, nmopi, ref->nirrep());
+  free(null); free(nmopi); free(doccpi);
+
+  IntegralTransform ints(ref, spaces, IntegralTransform::Restricted, IntegralTransform::DPDOnly);
+  ints.transform_tei(MOSpace::all, MOSpace::all, MOSpace::all, MOSpace::all);
+
+  psio->open(PSIF_LIBTRANS_DPD, PSIO_OPEN_OLD);
+  dpd_set_default(ints.get_dpd_id());
+  dpdbuf4 K;
+  global_dpd_->buf4_init(&K, PSIF_LIBTRANS_DPD, 0, ID("[A,A]"), ID("[A,A]"), ID("[A>=A]+"), ID("[A>=A]+"), 0, "MO Ints (AA|AA)");
+  ints_ = init_4d_array(nact, nact, nact, nact);
+  for(int h=0; h < ref->nirrep(); h++) {
+    global_dpd_->buf4_mat_irrep_init(&K, h);
+    global_dpd_->buf4_mat_irrep_rd(&K, h);
+    for(int pq=0; pq < K.params->rowtot[h]; pq++) {
+      int p = map2[ K.params->roworb[h][pq][0] ];
+      int q = map2[ K.params->roworb[h][pq][1] ];
+      for(int rs=0; rs < K.params->coltot[h]; rs++) {
+        int r = map2[ K.params->colorb[h][rs][0] ];
+        int s = map2[ K.params->colorb[h][rs][1] ];
+        ints_[p][r][q][s] = K.matrix[h][pq][rs];
+      }
+    }
+    global_dpd_->buf4_mat_irrep_close(&K, h);
+  }
+  global_dpd_->buf4_close(&K);
+  psio->close(PSIF_LIBTRANS_DPD, 1);
 
   // L(pqrs) = 2<pq|rs> - <pq|sr>  
   L_ = init_4d_array(nact, nact, nact, nact);
@@ -77,19 +91,6 @@ Hamiltonian::Hamiltonian(boost::shared_ptr<Wavefunction> reference)
         for(int s=0; s < nact; s++)
           L_[p][q][r][s] = 2*ints_[p][q][r][s] - ints_[p][q][s][r];
 
-  // Build the Fock matrix
-  fock_ = block_matrix(nact, nact);
-  for(int p=0; p < nact; p++)
-    for(int q=0; q < nact; q++) {
-      fock_[p][q] = oei[INDEX(p,q)];
-      for(int m=0; m < no; m++)
-        fock_[p][q] += L_[p][m][q][m];
-    }
-
-  delete[] ioff;
-  delete[] oei;
-  delete[] tei;
-  delete[] scratch;
 }
 
 Hamiltonian::~Hamiltonian()
@@ -98,32 +99,5 @@ Hamiltonian::~Hamiltonian()
   free_4d_array(L_, nact_, nact_, nact_);
   free_block(fock_); 
 }
-
-/*
-Hamiltonian::Hamiltonian(const boost::shared_ptr<Hamiltonian> &H)
-{
-  nmo_ = H->nmo_;
-  nact_ = H->nact_;
-  no_ = H->nact_;
-  nfzc_ = H->nfzc_;
-  nfzv_ = H->nfzv_;
-
-  int nact = nact_;
-
-  fock_ = block_matrix(nact, nact);
-  for(int p=0; p < nact; p++)
-    for(int q=0; q < nact; q++)
-      fock_[p][q] = H->fock_[p][q];
-
-  ints_ = init_4d_array(nact, nact, nact, nact);
-  for(int p=0; p < nact; p++)
-    for(int q=0; q < nact; q++)
-      for(int r=0; r < nact; r++)
-        for(int s=0; s < nact; s++) {
-          ints_[p][q][r][s] = H->ints_[p][q][r][s];
-          L_[p][q][r][s] = H->L_[p][q][r][s];
-        }
-}
-*/
 
 } // namespace psi

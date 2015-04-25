@@ -11,11 +11,11 @@ import p4util
 from p4xcpt import *
 
 
-def run_ugamp(name, **kwargs):
+def run_ugamp2(name, **kwargs):
     r"""Function encoding sequence of PSI module and plugin calls so that
     ugacc can be called via :py:func:`~driver.energy`. For post-scf plugins.
 
-    >>> energy('ugamp')
+    >>> energy('ugamp2')
 
     """
     lowername = name.lower()
@@ -24,7 +24,7 @@ def run_ugamp(name, **kwargs):
     # Your plugin's psi4 run sequence goes here
     psi4.set_global_option('WFN', 'CCSD')
     scf_helper(name, **kwargs)
-    psi4.transqt2()
+#    psi4.transqt2()
     if ('wfn' in kwargs):
         if (kwargs['wfn'] == 'ccsd'):
             psi4.set_global_option('WFN', 'CCSD')
@@ -36,16 +36,16 @@ def run_ugamp(name, **kwargs):
             psi4.set_global_option('WFN', 'MP3')
         elif (kwargs['wfn'] == 'mp4'):
             psi4.set_global_option('WFN', 'MP4')
-    returnvalue = psi4.plugin('ugamp.so')
+    returnvalue = psi4.plugin('ugamp2.so')
 #    psi4.set_variable('CURRENT ENERGY', returnvalue)
 
-def run_ugamp_gradient(name, **kwargs):
+def run_ugamp2_gradient(name, **kwargs):
     psi4.set_global_option('DERTYPE', 'FIRST')
-    run_ugamp(name, **kwargs)
+    run_ugamp2(name, **kwargs)
 
 # Integration with driver routines
-procedures['energy']['ugamp'] = run_ugamp
-procedures['gradient']['ugamp'] = run_ugamp_gradient
+procedures['energy']['ugamp2'] = run_ugamp2
+procedures['gradient']['ugamp2'] = run_ugamp2_gradient
 
 
 def exampleFN():
