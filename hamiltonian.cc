@@ -14,6 +14,11 @@ namespace psi {
 
 Hamiltonian::Hamiltonian(boost::shared_ptr<PSIO> psio, boost::shared_ptr<Wavefunction> ref, std::vector<boost::shared_ptr<MOSpace> > spaces)
 {
+  // If FVNO, set all virtual orbitals acetive
+  if(fvno_) {
+
+  }
+
   nmo_ = ref->nmo();
   nfzc_ = ref->nfrzc();
   nfzv_ = 0;

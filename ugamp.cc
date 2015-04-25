@@ -28,6 +28,7 @@ int read_options(std::string name, Options& options)
     options.add_double("R_CONVERGENCE", 1e-7);
     options.add_bool("OOC", false);
     options.add_bool("FVNO", false);
+    options.add_int("NUM_FRZV", 0);
   }
 
   return true;
@@ -42,6 +43,7 @@ PsiReturnType ugamp2(Options& options)
 
   std::vector<boost::shared_ptr<MOSpace> > spaces;
   spaces.push_back(MOSpace::all);
+
   boost::shared_ptr<Hamiltonian> H(new Hamiltonian(psio, ref, spaces));
   boost::shared_ptr<MBPT> mbpt(new MBPT(ref, H, options, psio));
 

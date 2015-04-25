@@ -52,6 +52,9 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   }
   char ** labels = molecule_->irrep_labels();
 
+  // Sanity check
+  if(fvno_ && nfrzv) throw PSIEXCEPTION("Must not use FROZEN_UOCC with FVNO.  Use NUM_FRZV instead.");
+
   outfile->Printf("\n\tReference Wfn Parameters:\n");
   outfile->Printf("\t---------------------------\n");
   outfile->Printf("\tNumber of irreps        = %d\n", nirrep_);
