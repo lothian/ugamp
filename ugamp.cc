@@ -35,7 +35,7 @@ int read_options(std::string name, Options& options)
 }
 
 extern "C" 
-PsiReturnType ugamp2(Options& options)
+PsiReturnType ugamp(Options& options)
 {
   boost::shared_ptr<PSIO> psio(_default_psio_lib_);
   boost::shared_ptr<Wavefunction> ref = Process::environment.wavefunction();
@@ -44,7 +44,7 @@ PsiReturnType ugamp2(Options& options)
   std::vector<boost::shared_ptr<MOSpace> > spaces;
   spaces.push_back(MOSpace::all);
 
-  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(psio, ref, spaces));
+  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(psio, ref, spaces, options.get_bool("FVNO")));
   boost::shared_ptr<MBPT> mbpt(new MBPT(ref, H, options, psio));
 
   boost::shared_ptr<Chkpt> chkpt(new Chkpt(psio, PSIO_OPEN_OLD));

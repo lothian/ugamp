@@ -12,18 +12,18 @@
 
 namespace psi {
 
-Hamiltonian::Hamiltonian(boost::shared_ptr<PSIO> psio, boost::shared_ptr<Wavefunction> ref, std::vector<boost::shared_ptr<MOSpace> > spaces)
+Hamiltonian::Hamiltonian(boost::shared_ptr<PSIO> psio, boost::shared_ptr<Wavefunction> ref,
+std::vector<boost::shared_ptr<MOSpace> > spaces, bool full_virtual_space)
 {
-  // If FVNO, set all virtual orbitals acetive
-  if(fvno_) {
-
-  }
+  Dimension frzvpi = ref->frzvpi();
+  if(full_virtual_space)
+    for(int h=0; h < ref->nirrep(); h++) frzvpi[h] = 0;
 
   nmo_ = ref->nmo();
   nfzc_ = ref->nfrzc();
   nfzv_ = 0;
   for(int i=0; i < ref->nirrep(); i++) 
-    nfzv_ += ref->frzvpi()[i];
+    nfzv_ += frzvpi[i];
   nact_ = nmo_ - nfzc_ - nfzv_;
 
   int nact = nact_;
@@ -34,13 +34,13 @@ Hamiltonian::Hamiltonian(boost::shared_ptr<PSIO> psio, boost::shared_ptr<Wavefun
   Fa->transform(Ca);
 
   int *map = init_int_array(nmo_); // Translates from Pitzer (including frozen docc) to QT
-  reorder_qt((int *) ref->doccpi(), (int *) ref->soccpi(), (int *) ref->frzcpi(), (int *) ref->frzvpi(), 
+  reorder_qt((int *) ref->doccpi(), (int *) ref->soccpi(), (int *) ref->frzcpi(), (int *) frzvpi, 
              map, (int *) ref->nmopi(), ref->nirrep());
 
   fock_ = block_matrix(nact, nact);
   int mo_offset=0;
   for(int h=0; h < ref->nirrep(); h++) {
-    int nmo = ref->nmopi()[h]; int nfv = ref->frzvpi()[h]; int nfc = ref->frzcpi()[h];
+    int nmo = ref->nmopi()[h]; int nfv = frzvpi[h]; int nfc = ref->frzcpi()[h];
     for(int p=nfc; p < nmo-nfv; p++) {
       for(int q=nfc; q < nmo-nfv; q++) {
       int P = map[p+mo_offset]; int Q = map[q+mo_offset];
@@ -57,13 +57,15 @@ Hamiltonian::Hamiltonian(boost::shared_ptr<PSIO> psio, boost::shared_ptr<Wavefun
   int *null = init_int_array(ref->nirrep());
   for(int h=0; h < ref->nirrep(); h++) {
     doccpi[h] = ref->doccpi()[h] - ref->frzcpi()[h];
-    nmopi[h] = ref->nmopi()[h] - ref->frzcpi()[h] - ref->frzvpi()[h];
+    nmopi[h] = ref->nmopi()[h] - ref->frzcpi()[h] - frzvpi[h];
   }
   int *map2 = init_int_array(nact); // Translates from Pitzer (w/o frozen MOs) to QT
   reorder_qt(doccpi, (int *) ref->soccpi(), null, null, map2, nmopi, ref->nirrep());
   free(null); free(nmopi); free(doccpi);
 
-  IntegralTransform ints(ref, spaces, IntegralTransform::Restricted, IntegralTransform::DPDOnly);
+  IntegralTransform ints(ref, spaces, IntegralTransform::Restricted, IntegralTransform::DPDOnly, 
+                         IntegralTransform::PitzerOrder, 
+                         full_virtual_space ? IntegralTransform::OccOnly : IntegralTransform::OccAndVir);
   ints.transform_tei(MOSpace::all, MOSpace::all, MOSpace::all, MOSpace::all);
 
   psio->open(PSIF_LIBTRANS_DPD, PSIO_OPEN_OLD);

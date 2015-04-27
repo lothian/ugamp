@@ -43,6 +43,9 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   set_reference_wavefunction(reference);
   copy(reference);
 
+  if(fvno_)  // need full virtual space, because all we're doing is computing VNOs
+    for(int i=0; i < nirrep_; i++) frzvpi_[i] = 0;
+
   int nfrzv = 0;
   no_ = nv_ = 0;
   for(int i=0; i < nirrep_; i++) {
@@ -51,9 +54,6 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
     nfrzv += frzvpi_[i];
   }
   char ** labels = molecule_->irrep_labels();
-
-  // Sanity check
-  if(fvno_ && nfrzv) throw PSIEXCEPTION("Must not use FROZEN_UOCC with FVNO.  Use NUM_FRZV instead.");
 
   outfile->Printf("\n\tReference Wfn Parameters:\n");
   outfile->Printf("\t---------------------------\n");

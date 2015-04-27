@@ -9,7 +9,7 @@ namespace psi {
 
 class Hamiltonian {
 public:
-  Hamiltonian(boost::shared_ptr<PSIO>, boost::shared_ptr<Wavefunction>, std::vector<boost::shared_ptr<MOSpace> >);
+  Hamiltonian(boost::shared_ptr<PSIO>, boost::shared_ptr<Wavefunction>, std::vector<boost::shared_ptr<MOSpace> >, bool);
   virtual ~Hamiltonian();
 //  Hamiltonian(const boost::shared_ptr<Hamiltonian> &H);
 
