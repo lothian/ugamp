@@ -18,14 +18,13 @@ set {
 #  r_convergence 1e-15
 #  e_convergence 1e-15
   maxiter 1000
-  ooc true
-  fvno true
-  omega [589, nm]
+#  omega [589, nm]
 #  gauge both
+  fvno true
 #  frozen_uocc [0]
 #  num_frzv 0
-  nat_orbs true
-#  occ_tolerance 0.000002
+  spatial_tol 9.0
+  occ_tol 1e-3
 }
 
 energy('ugamp', wfn='mp2')

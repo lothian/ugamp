@@ -24,11 +24,14 @@ protected:
   int dertype_;         // Gradient level
   bool fvno_;           // Frozen-virtual NO calculation?
   int num_frzv_;        // Number of frozen-virtuals
+  double occ_tol_;      // NO occupation-number threshold
+  double spatial_tol_;  // NO <r^2> threshold
 
   int no_;  // Number of active occupied MOs
   int nv_;  // Number of active virtual MOs
 
   boost::shared_ptr<Hamiltonian> H_; // integrals and Fock matrix
+  boost::shared_ptr<Wavefunction> reference_;
   
   // Energy denominators
   double **D1_;
@@ -42,15 +45,6 @@ protected:
   double ******t3_2_; // Second-order T3
 
 public:
-  int maxiter() { return maxiter_; }
-  double convergence() { return convergence_; }
-  std::string wfn() { return wfn_; } 
-  bool do_diis() { return do_diis_; }
-  bool ooc() { return ooc_; }
-  int dertype() { return dertype_; }
-  bool fvno() { return fvno_; }
-  int num_frzv() { return num_frzv_; }
-
   double compute_energy();
 
   double mp2(boost::shared_ptr<Chkpt>);

@@ -52,8 +52,6 @@ Perturbation::Perturbation(std::string op, boost::shared_ptr<Wavefunction> ref)
     prop_irreps[3] = dipsym.component_symmetry(1) ^ dipsym.component_symmetry(1);
     prop_irreps[4] = dipsym.component_symmetry(1) ^ dipsym.component_symmetry(2);
     prop_irreps[5] = dipsym.component_symmetry(2) ^ dipsym.component_symmetry(2);
-    outfile->Printf("%d %d %d %d %d %d\n", prop_irreps[0], prop_irreps[1], prop_irreps[2], prop_irreps[3],
-prop_irreps[4], prop_irreps[5]);
   }
 
   // Grab the raw SO integrals

@@ -7,6 +7,7 @@
 #include <cmath>
 #include <libpsio/psio.h>
 #include <libchkpt/chkpt.h>
+#include "perturbation.h"
 
 namespace psi {
 
@@ -32,15 +33,27 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   else if(options.get_str("DERTYPE") == "FIRST") dertype_ = 1;
   fvno_ = options.get_bool("FVNO");
   num_frzv_ = options.get_int("NUM_FRZV");
+  occ_tol_ = options.get_double("OCC_TOL");
+  spatial_tol_ = options.get_double("SPATIAL_TOL");
 
-  outfile->Printf("\tWave function     = %s\n", wfn().c_str());
-  outfile->Printf("\tMaxiter           = %d\n", maxiter());
-  outfile->Printf("\tConvergence       = %3.1e\n", convergence());
-  outfile->Printf("\tDIIS              = %s\n", do_diis() ? "Yes" : "No");
-  outfile->Printf("\tOut-of-core       = %s\n", ooc() ? "Yes" : "No");
-  outfile->Printf("\tDertype           = %d\n", dertype());
-  outfile->Printf("\tFrozen-Virtual NO = %d\n", fvno());
-  outfile->Printf("\tNo. FVNOs         = %d\n", num_frzv());
+  outfile->Printf("\tWave function        = %s\n", wfn_.c_str());
+  outfile->Printf("\tMaxiter              = %d\n", maxiter_);
+  outfile->Printf("\tConvergence          = %3.1e\n", convergence_);
+  outfile->Printf("\tDIIS                 = %s\n", do_diis_ ? "Yes" : "No");
+  outfile->Printf("\tOut-of-core          = %s\n", ooc_ ? "Yes" : "No");
+  outfile->Printf("\tDertype              = %d\n", dertype_);
+  outfile->Printf("\tFrozen-Virtual NO    = %d\n", fvno_);
+  outfile->Printf("\tNO Occupation Cutoff = %3.1e\n", occ_tol_);
+  outfile->Printf("\tNO <r^2> Cutoff      = %3.1e\n", spatial_tol_);
+  outfile->Printf("\tNo. FVNOs            = %d\n", num_frzv_);
+  if(occ_tol_ >= 0.0 && spatial_tol_ >= 0.0) 
+    outfile->Printf("\tDeleting FVNOs based on both occupation numbers and spatial extent.\n");
+  else if(occ_tol_ >= 0.0 && spatial_tol_ < 0.0) 
+    outfile->Printf("\tDeleting FVNOs based on occupation numbers.\n");
+  else if(occ_tol_ < 0.0 && spatial_tol_ >= 0.0) 
+    outfile->Printf("\tDeleting FVNOs based on user input and spatial extent.\n");
+  else if(occ_tol_ < 0.0 && spatial_tol_ < 0.0) 
+    outfile->Printf("\tDeleting FVNOs based on user input.\n");
 
   set_reference_wavefunction(reference);
   copy(reference);
@@ -79,7 +92,8 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   for(int i=0; i < nirrep_; i++) free(labels[i]);
   free(labels);
 
-  H_ = H; // does this copy properly?
+  H_ = H;                 // does this copy properly?
+  reference_ = reference; // does this copy properly?
 
   // Prepare energy denominators
   int no = no_;
@@ -141,7 +155,7 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
           emp2 += t2_1[i][j][a][b] * L[i][j][a+no][b+no];
 
   // Compute virtual natural orbitals
-  if(fvno() == true) {
+  if(fvno_ == true) {
     if(nirrep() > 1)
       throw PSIEXCEPTION("You must add\n\n\tsymmetry c1\n\nto the molecule{} block to compute FVNOs.");
 
@@ -160,38 +174,78 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     // Pa_V transforms from MOV to NOV
     Pa_v->print();
 
-    // Transform VMOs to VNOs
-    SharedMatrix C = Ca();
-    SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
-    SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
-    X->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
+    // Decision time: delete virtuals based on occupation numbers, num_frzv, spatial extent, or
+    // combination thereof?
+
+    int nvno=0;
+    SharedMatrix Y(new Matrix("FVNOs (SO, NO)", nso_, nv));
+    if(spatial_tol_ >= 0.0 && occ_tol_ >= 0.0) { 
+      // Need <r^2> integrals for spatial tolerances
+
+      // Prepare the full SO->NO transformer
+      SharedMatrix C = Ca();
+      SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
+      SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
+      X->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
+
+      // Create a new reference wfn replacing its MOs with the NOs
+      boost::shared_ptr<Wavefunction> newref = reference_;
+      SharedMatrix SCF = newref->Ca();
+      double **SCFp = SCF->pointer();
+      double **Xp = X->pointer();
+      for(int p=0; p < nso_; p++)
+        for(int a=0; a < nv; a++)
+          SCFp[p][a+no+nfrzc_] = Xp[p][a];
+      newref->Ca()->set(SCFp);
+      newref->Cb()->set(SCFp);
+
+      // Use the new reference to generate the NO-basis r^2 integrals
+      boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref));
+
+      double **xx = RR->prop_p(0,0);
+      double **yy = RR->prop_p(1,1);
+      double **zz = RR->prop_p(2,2);
+      outfile->Printf("MO#  <r^2>\n");
+      for(int p=no; p < H_->nact(); p++)
+        outfile->Printf("%d %8.4f\n", p-no, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
+
+      // Re-organize the NOs to keep only active virtuals
+      double *Pa_vp = Pa_v->pointer();
+      double **Pa_Vp = Pa_V->pointer();
+      double **Yp = Y->pointer();
+      for(int p=no; p < H_->nact(); p++) {
+        if((-1.0*(xx[p][p]+yy[p][p]+zz[p][p])) > spatial_tol_ || Pa_vp[p] > occ_tol_) {
+          for(int q=0; q < nso_; q++) Yp[q][nvno] = Xp[q][p-no];
+          nvno++;
+        }
+      }
+    }
+
+    outfile->Printf("\n# Active Virtual NOs  = %d\n", nvno);
+    outfile->Printf(  "# Deleted Virtual NOs = %d\n", nv - nvno);
 
     // Transform VV Fock matrix to NO space
-    int nvno = nv - num_frzv();
-    SharedMatrix FVV_NO(new Matrix("Pa_V^+ * FVV_MO * Pa_V", nvno, nvno));
+    SharedMatrix FVV_NO(new Matrix("Y^+ * FVV_MO * Y", nvno, nvno));
     double **FVV_NOp = FVV_NO->pointer();
     double **Pa_Vp = Pa_V->pointer();
     double **fock = H_->fock_p();
     for(int a=0; a < nvno; a++)
       for(int b=0; b < nvno; b++)
         for(int c=0; c < nv; c++)
-          FVV_NOp[a][b] += fock[c+no][c+no] * Pa_Vp[c][a] * Pa_Vp[c][b];
+          FVV_NOp[a][b] += fock[c+no][c+no] * Yp[c][a] * Yp[c][b];
 
     SharedMatrix FVV_V(new Matrix("VV NO Fock Matrix Eigenvectors", nvno, nvno));
     SharedVector FVV_v(new Vector("VV NO Fock Matrix Eigenvalues", nvno));
     FVV_NO->diagonalize(FVV_V, FVV_v);
-    FVV_v->print();
 
     // FVV_V transforms from truncated NOV to truncated semicanonical NOV
-    double **Xp = X->pointer();
     double **FVV_Vp = FVV_V->pointer();
     double **Cp = C->pointer();
     for(int p=0; p < nso_; p++)
-      for(int a=0; a < nv; a++) {
-        Cp[p][a+no+nfrzc_] = Xp[p][a]; // no semi-canonicalization for now
-//      for(int a=0; a < nvno; a++) {
-//        for(int b=0; b < nvno; b++)
-//          Cp[p][a+no+nfrzc_] += Xp[p][b] * FVV_Vp[b][a];
+      for(int a=0; a < nvno; a++) {
+        Cp[p][a+no+nfrzc_] = 0.0;
+        for(int b=0; b < nvno; b++)
+          Cp[p][a+no+nfrzc_] += Yp[p][b] * FVV_Vp[b][a];
       }
 
     chkpt->wt_scf(Cp);

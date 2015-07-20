@@ -27,9 +27,11 @@ int read_options(std::string name, Options& options)
     options.add_int("MAXITER", 100);
     options.add_bool("DIIS", true);
     options.add_double("R_CONVERGENCE", 1e-7);
-    options.add_bool("OOC", false);
-    options.add_bool("FVNO", false);
-    options.add_int("NUM_FRZV", 0);
+    options.add_bool("OOC", false); // use out-of-core algorithms
+    options.add_bool("FVNO", false); // compute MP2 frozen-virtual NOs
+    options.add_double("OCC_TOL", -1.0); // delete FVNOs below cutoff
+    options.add_int("NUM_FRZV", 0); // number of FVNOs to delete
+    options.add_double("SPATIAL_TOL", -1.0); // only delete FVNOs below R^2 cutoff
   }
 
   return true;
@@ -53,37 +55,22 @@ PsiReturnType ugamp(Options& options)
   double eref=0.0, emp2=0.0, emp3=0.0, emp4=0.0;
   eref = mbpt->reference_energy();
  
-  if(mbpt->wfn() == "MP2" || mbpt->wfn() == "MP3" || mbpt->wfn() == "MP4") {
+  if(options.get_str("WFN") == "MP2" || options.get_str("WFN") == "MP3" || options.get_str("WFN") == "MP4") {
     emp2 = mbpt->mp2(chkpt);
     outfile->Printf("\tEMP2 (corr)    = %20.15f\n", emp2);
     outfile->Printf("\tEMP2           = %20.15f\n", emp2 + eref);
   }
 
-  if(mbpt->wfn() == "MP3" || mbpt->wfn() == "MP4") {
+  if(options.get_str("WFN") == "MP3" || options.get_str("WFN") == "MP4") {
     emp3 = mbpt->mp3();
     outfile->Printf("\tEMP3 (corr)    = %20.15f\n", emp3);
     outfile->Printf("\tEMP3           = %20.15f\n", emp2 + emp3 + eref);
   }
 
-  if(mbpt->wfn() == "MP4") {
+  if(options.get_str("WFN") == "MP4") {
     emp4 = mbpt->mp4();
     outfile->Printf("\tEMP4 (corr)    = %20.15f\n", emp4);
     outfile->Printf("\tEMP4           = %20.15f\n", emp2 + emp3 + emp4 + eref);
-  }
-
-  // Prepare property integrals for perturbed wave functions
-  boost::shared_ptr<Perturbation> RR(new Perturbation("RR", Process::environment.wavefunction()));
-//  RR->print(0, 0, "outfile");
-//  RR->print(1, 1, "outfile");
-//  RR->print(2, 2, "outfile");
-
-  double **xx = RR->prop_p(0,0);
-  double **yy = RR->prop_p(1,1);
-  double **zz = RR->prop_p(2,2);
-  outfile->Printf("MO <r^2>\n");
-  for(int p=0; p < H->nact(); p++) {
-    // compute <r^2> for each MO; the -1 gets rid of the electron charge
-    outfile->Printf("%d %8.4f\n", p, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
   }
 
   return Success;
