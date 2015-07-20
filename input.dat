@@ -28,31 +28,33 @@ set {
 #  occ_tolerance 0.000002
 }
 
-table = Table(rows=("\# Frozen Virtuals"), cols=("Unperturbed", "Canonical"))
+energy('ugamp', wfn='mp2')
 
-for x in range(0, 10):
-    set frozen_uocc [$x]
-    set num_frzv $x   
-    property('ccsd',properties=['polarizability'])
-    canpolar = get_variable("CCSD Dipole Polarizability")*3.0
-    clean()
-    energy('ugamp',wfn='mp2')
-    psi4.set_global_option('WFN', 'CCSD')
-    psi4.set_global_option('DERTYPE', 'RESPONSE')
-    psi4.set_global_option('PROPERTY', 'POLARIZABILITY')
-    mints = psi4.MintsHelper()
-    mints.integrals()
-    psi4.transqt2()
-    psi4.ccsort()
-    psi4.ccenergy()
-    psi4.cchbar()
-    psi4.cclambda()
-    psi4.ccresponse()
-    fvnopolar = get_variable("CCSD Dipole Polarizability")*3.0
-    clean()
-    table[x] = [fvnopolar, canpolar]
+#table = Table(rows=("\# Frozen Virtuals"), cols=("Unperturbed", "Canonical"))
 
-print_out(str(table))
+#for x in range(0, 10):
+#    set frozen_uocc [$x]
+#    set num_frzv $x   
+#    property('ccsd',properties=['polarizability'])
+#    canpolar = get_variable("CCSD Dipole Polarizability")*3.0
+#    clean()
+#    energy('ugamp',wfn='mp2')
+#    psi4.set_global_option('WFN', 'CCSD')
+#    psi4.set_global_option('DERTYPE', 'RESPONSE')
+#    psi4.set_global_option('PROPERTY', 'POLARIZABILITY')
+#    mints = psi4.MintsHelper()
+#    mints.integrals()
+#    psi4.transqt2()
+#    psi4.ccsort()
+#    psi4.ccenergy()
+#    psi4.cchbar()
+#    psi4.cclambda()
+#    psi4.ccresponse()
+#    fvnopolar = get_variable("CCSD Dipole Polarizability")*3.0
+#    clean()
+#    table[x] = [fvnopolar, canpolar]
+#
+#print_out(str(table))
 
 
 #energy('ccsd')

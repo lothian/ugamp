@@ -16,6 +16,7 @@ public:
   double ** fock_p() { return fock_; }
   double **** ints_p() { return ints_; }
   double **** L_p() { return L_; }
+  int nact() { return nact_; }
 
 protected:
   int nmo_;

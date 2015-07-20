@@ -187,13 +187,16 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     double **FVV_Vp = FVV_V->pointer();
     double **Cp = C->pointer();
     for(int p=0; p < nso_; p++)
-      for(int a=0; a < nvno; a++) {
-        Cp[p][a+no+nfrzc_] = 0.0;
-        for(int b=0; b < nvno; b++)
-          Cp[p][a+no+nfrzc_] += Xp[p][b] * FVV_Vp[b][a];
+      for(int a=0; a < nv; a++) {
+        Cp[p][a+no+nfrzc_] = Xp[p][a]; // no semi-canonicalization for now
+//      for(int a=0; a < nvno; a++) {
+//        for(int b=0; b < nvno; b++)
+//          Cp[p][a+no+nfrzc_] += Xp[p][b] * FVV_Vp[b][a];
       }
 
     chkpt->wt_scf(Cp);
+    Process::environment.wavefunction()->Ca()->set(Cp);
+    Process::environment.wavefunction()->Cb()->set(Cp);
   }
 
   return emp2;

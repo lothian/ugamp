@@ -1,4 +1,5 @@
 #include "mbpt.h"
+#include "perturbation.h"
 
 #include <libplugin/plugin.h>
 #include <psi4-dec.h>
@@ -68,6 +69,21 @@ PsiReturnType ugamp(Options& options)
     emp4 = mbpt->mp4();
     outfile->Printf("\tEMP4 (corr)    = %20.15f\n", emp4);
     outfile->Printf("\tEMP4           = %20.15f\n", emp2 + emp3 + emp4 + eref);
+  }
+
+  // Prepare property integrals for perturbed wave functions
+  boost::shared_ptr<Perturbation> RR(new Perturbation("RR", Process::environment.wavefunction()));
+//  RR->print(0, 0, "outfile");
+//  RR->print(1, 1, "outfile");
+//  RR->print(2, 2, "outfile");
+
+  double **xx = RR->prop_p(0,0);
+  double **yy = RR->prop_p(1,1);
+  double **zz = RR->prop_p(2,2);
+  outfile->Printf("MO <r^2>\n");
+  for(int p=0; p < H->nact(); p++) {
+    // compute <r^2> for each MO; the -1 gets rid of the electron charge
+    outfile->Printf("%d %8.4f\n", p, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
   }
 
   return Success;
