@@ -23,6 +23,7 @@ protected:
   bool ooc_;            // Use out-of-core algorithms?
   int dertype_;         // Gradient level
   bool fvno_;           // Frozen-virtual NO calculation?
+  int num_frzv_;        // Number of frozen-virtuals
 
   int no_;  // Number of active occupied MOs
   int nv_;  // Number of active virtual MOs
@@ -48,6 +49,7 @@ public:
   bool ooc() { return ooc_; }
   int dertype() { return dertype_; }
   bool fvno() { return fvno_; }
+  int num_frzv() { return num_frzv_; }
 
   double compute_energy();
 

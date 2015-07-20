@@ -31,6 +31,7 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   if(options.get_str("DERTYPE") == "NONE") dertype_ = 0;
   else if(options.get_str("DERTYPE") == "FIRST") dertype_ = 1;
   fvno_ = options.get_bool("FVNO");
+  num_frzv_ = options.get_int("NUM_FRZV");
 
   outfile->Printf("\tWave function     = %s\n", wfn().c_str());
   outfile->Printf("\tMaxiter           = %d\n", maxiter());
@@ -39,6 +40,7 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   outfile->Printf("\tOut-of-core       = %s\n", ooc() ? "Yes" : "No");
   outfile->Printf("\tDertype           = %d\n", dertype());
   outfile->Printf("\tFrozen-Virtual NO = %d\n", fvno());
+  outfile->Printf("\tNo. FVNOs         = %d\n", num_frzv());
 
   set_reference_wavefunction(reference);
   copy(reference);
@@ -152,27 +154,44 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
             for(int c=0; c < nv; c++)
               Pap[a][b] += l2_1[i][j][a][c] * t2_1[i][j][b][c];
 
-//    Pa->print();
     SharedMatrix Pa_V(new Matrix("MP2 VV Density Eigenvectors", nv, nv));
     SharedVector Pa_v(new Vector("MP2 VV Density Eigenvalues", nv));
     Pa->diagonalize(Pa_V, Pa_v, descending);
-//    Pa_V->print();
+    // Pa_V transforms from MOV to NOV
     Pa_v->print();
 
-    // Transform SCF MOs to frozen virtual NOs
+    // Transform VMOs to VNOs
     SharedMatrix C = Ca();
     SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
+    SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
+    X->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
 
-    SharedMatrix Z(new Matrix("Cv * Pa_V", nso_, nv));
-    Z->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
-//    Z->print();
+    // Transform VV Fock matrix to NO space
+    int nvno = nv - num_frzv();
+    SharedMatrix FVV_NO(new Matrix("Pa_V^+ * FVV_MO * Pa_V", nvno, nvno));
+    double **FVV_NOp = FVV_NO->pointer();
+    double **Pa_Vp = Pa_V->pointer();
+    double **fock = H_->fock_p();
+    for(int a=0; a < nvno; a++)
+      for(int b=0; b < nvno; b++)
+        for(int c=0; c < nv; c++)
+          FVV_NOp[a][b] += fock[c+no][c+no] * Pa_Vp[c][a] * Pa_Vp[c][b];
 
-    // Copy Z over old SCF virtual MOs
-    double **Zp = Z->pointer();
+    SharedMatrix FVV_V(new Matrix("VV NO Fock Matrix Eigenvectors", nvno, nvno));
+    SharedVector FVV_v(new Vector("VV NO Fock Matrix Eigenvalues", nvno));
+    FVV_NO->diagonalize(FVV_V, FVV_v);
+    FVV_v->print();
+
+    // FVV_V transforms from truncated NOV to truncated semicanonical NOV
+    double **Xp = X->pointer();
+    double **FVV_Vp = FVV_V->pointer();
     double **Cp = C->pointer();
-    for(int a=0; a < nv; a++)
-      for(int p=0; p < nso_; p++)
-        Cp[p][a+no+nfrzc_] = Zp[p][a];
+    for(int p=0; p < nso_; p++)
+      for(int a=0; a < nvno; a++) {
+        Cp[p][a+no+nfrzc_] = 0.0;
+        for(int b=0; b < nvno; b++)
+          Cp[p][a+no+nfrzc_] += Xp[p][b] * FVV_Vp[b][a];
+      }
 
     chkpt->wt_scf(Cp);
   }
