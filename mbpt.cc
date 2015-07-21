@@ -182,7 +182,7 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     if(spatial_tol_ >= 0.0 && occ_tol_ >= 0.0) { 
       // Need <r^2> integrals for spatial tolerances
 
-      // Prepare the full SO->NO transformer
+      // Prepare the full SO->NO transformer, X
       SharedMatrix C = Ca();
       SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
       SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
