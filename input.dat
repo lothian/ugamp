@@ -23,8 +23,8 @@ set {
   fvno true
 #  frozen_uocc [0]
 #  num_frzv 0
-  spatial_tol 9.0
-  occ_tol 1e-3
+#  spatial_tol 9.0
+#  occ_tol 1e-3
 }
 
 energy('ugamp', wfn='mp2')

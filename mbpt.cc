@@ -171,44 +171,51 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     SharedMatrix Pa_V(new Matrix("MP2 VV Density Eigenvectors", nv, nv));
     SharedVector Pa_v(new Vector("MP2 VV Density Eigenvalues", nv));
     Pa->diagonalize(Pa_V, Pa_v, descending);
-    // Pa_V transforms from MOV to NOV
     Pa_v->print();
 
-    // Decision time: delete virtuals based on occupation numbers, num_frzv, spatial extent, or
-    // combination thereof?
+    // Compute the spatial extent of each NO, regardless of FREEZE_TYPE
+    SharedMatrix C = Ca();
+    SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
+    SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
+    X->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
 
-    int nvno=0;
+    // Create a new reference wfn replacing its MOs with the NOs
+    boost::shared_ptr<Wavefunction> newref = reference_;
+    SharedMatrix SCF = newref->Ca();
+    double **SCFp = SCF->pointer();
+    double **Xp = X->pointer();
+    for(int p=0; p < nso_; p++)
+      for(int a=0; a < nv; a++)
+        SCFp[p][a+no+nfrzc_] = Xp[p][a];
+
+    // Use the new reference to generate the NO-basis r^2 integrals
+    boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref));
+
+    SharedVector RR_NO(new Vector("NO <R^2> Values", nv));
+    double *RR_NOp = RR_NO->pointer();
+    double **xx = RR->prop_p(0,0);
+    double **yy = RR->prop_p(1,1);
+    double **zz = RR->prop_p(2,2);
+    for(int p=no; p < H_->nact(); p++)
+      RR_NOp[p-no] = -1.0*(xx[p][p]+yy[p][p]+zz[p][p]);
+    RR_NO->print();
+
+    // SINGLE_ORB...
+
+    // MULTI_ORB...
+
+    // OCCUPATION...
+
+    // SPATIAL...
+
+    // HYBRID...
+
+//    int nvno=0;
 //    SharedMatrix Y(new Matrix("FVNOs (SO, NO)", nso_, nv));
-    if(spatial_tol_ >= 0.0 && occ_tol_ >= 0.0) { 
-      // Need <r^2> integrals for spatial tolerances
 
-      // Prepare the full SO->NO transformer, X
-      SharedMatrix C = Ca();
-      SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
-      SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
-      X->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
-
-      // Create a new reference wfn replacing its MOs with the NOs
-      boost::shared_ptr<Wavefunction> newref = reference_;
-      SharedMatrix SCF = newref->Ca();
-      double **SCFp = SCF->pointer();
-      double **Xp = X->pointer();
-      for(int p=0; p < nso_; p++)
-        for(int a=0; a < nv; a++)
-          SCFp[p][a+no+nfrzc_] = Xp[p][a];
-
-      // Use the new reference to generate the NO-basis r^2 integrals
-      boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref));
-
-      double **xx = RR->prop_p(0,0);
-      double **yy = RR->prop_p(1,1);
-      double **zz = RR->prop_p(2,2);
-      outfile->Printf("NO#  <r^2>\n");
-      for(int p=no; p < H_->nact(); p++)
-        outfile->Printf("%d %8.4f\n", p-no, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
 
       // Re-organize the NOs to keep only active virtuals
- //     double *Pa_vp = Pa_v->pointer();
+//      double *Pa_vp = Pa_v->pointer();
 //      double **Pa_Vp = Pa_V->pointer();
 //      double **Yp = Y->pointer();
 //      for(int p=no; p < H_->nact(); p++) {
@@ -217,10 +224,10 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
 //          nvno++;
 //        }
 //      }
-    }
+//    }
 
-    outfile->Printf("\n# Active Virtual NOs  = %d\n", nvno);
-    outfile->Printf(  "# Deleted Virtual NOs = %d\n", nv - nvno);
+//    outfile->Printf("\n# Active Virtual NOs  = %d\n", nvno);
+//    outfile->Printf(  "# Deleted Virtual NOs = %d\n", nv - nvno);
 
     // Transform VV Fock matrix to NO space
 //    SharedMatrix FVV_NO(new Matrix("Y^+ * FVV_MO * Y", nvno, nvno));
@@ -249,7 +256,8 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
 //    chkpt->wt_scf(Cp);
 //    Process::environment.wavefunction()->Ca()->set(Cp);
 //    Process::environment.wavefunction()->Cb()->set(Cp);
-  }
+
+  } // if(fvno_ == true)
 
   return emp2;
 }

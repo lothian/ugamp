@@ -28,10 +28,12 @@ int read_options(std::string name, Options& options)
     options.add_bool("DIIS", true);
     options.add_double("R_CONVERGENCE", 1e-7);
     options.add_bool("OOC", false); // use out-of-core algorithms
+
     options.add_bool("FVNO", false); // compute MP2 frozen-virtual NOs
-    options.add_double("OCC_TOL", -1.0); // delete FVNOs below cutoff
-    options.add_int("NUM_FRZV", 0); // number of FVNOs to delete
-    options.add_double("SPATIAL_TOL", -1.0); // only delete FVNOs below R^2 cutoff
+    options.add_str("FREEZE_TYPE", "MULTI_ORB", "MULTI_ORB SINGLE_ORB OCCUPATION SPATIAL HYBRID");
+    options.add_int("NUM_FRZV", 0); // number of FVNOs or which single orb to delete
+    options.add_double("OCC_TOL", 0.0); // delete FVNOs below cutoff
+    options.add_double("SPATIAL_TOL", 0.0); // only delete FVNOs below R^2 cutoff
   }
 
   return true;
