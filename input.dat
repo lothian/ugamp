@@ -14,20 +14,29 @@ symmetry c1
 
 set {
   freeze_core false
-  basis aug-cc-pVDZ
+  basis cc-pVDZ
 #  r_convergence 1e-15
 #  e_convergence 1e-15
   maxiter 1000
 #  omega [589, nm]
 #  gauge both
   fvno true
+  freeze_type occupation
+  occ_tol 1e-3
+  occ_tolerance 1e-3
+#  num_frzv 1
 #  frozen_uocc [0]
-#  num_frzv 0
 #  spatial_tol 9.0
-#  occ_tol 1e-3
 }
 
-energy('ugamp', wfn='mp2')
+energy('fno-ccsd')
+#energy('ugamp', wfn='mp2')
+#psi4.set_global_option('WFN', 'CCSD')
+#mints = psi4.MintsHelper()
+#mints.integrals()
+#psi4.transqt2()
+#psi4.ccsort()
+#psi4.ccenergy()
 
 #table = Table(rows=("\# Frozen Virtuals"), cols=("Unperturbed", "Canonical"))
 
@@ -57,5 +66,4 @@ energy('ugamp', wfn='mp2')
 
 
 #energy('ccsd')
-#energy('fno-ccsd')
 

@@ -31,6 +31,7 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   ooc_ = options.get_bool("OOC");
   if(options.get_str("DERTYPE") == "NONE") dertype_ = 0;
   else if(options.get_str("DERTYPE") == "FIRST") dertype_ = 1;
+  freeze_type_ = options.get_str("FREEZE_TYPE");
   fvno_ = options.get_bool("FVNO");
   num_frzv_ = options.get_int("NUM_FRZV");
   occ_tol_ = options.get_double("OCC_TOL");
@@ -176,43 +177,117 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     // Compute the spatial extent of each NO, regardless of FREEZE_TYPE
     SharedMatrix C = Ca();
     SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
-    SharedMatrix X(new Matrix("Cv * Pa_V", nso_, nv));
-    X->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
+    SharedMatrix T_VMO_2_VNO(new Matrix("Cv * Pa_V", nso_, nv));
+    T_VMO_2_VNO->gemm(false, false, 1.0, Cv, Pa_V, 0.0);
 
     // Create a new reference wfn replacing its MOs with the NOs
     boost::shared_ptr<Wavefunction> newref = reference_;
     SharedMatrix SCF = newref->Ca();
     double **SCFp = SCF->pointer();
-    double **Xp = X->pointer();
+    double **T_VMO_2_VNOp = T_VMO_2_VNO->pointer();
     for(int p=0; p < nso_; p++)
       for(int a=0; a < nv; a++)
-        SCFp[p][a+no+nfrzc_] = Xp[p][a];
+        SCFp[p][a+no+nfrzc_] = T_VMO_2_VNOp[p][a];
 
     // Use the new reference to generate the NO-basis r^2 integrals
     boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref));
 
     SharedVector RR_NO(new Vector("NO <R^2> Values", nv));
-    double *RR_NOp = RR_NO->pointer();
     double **xx = RR->prop_p(0,0);
     double **yy = RR->prop_p(1,1);
     double **zz = RR->prop_p(2,2);
-    for(int p=no; p < H_->nact(); p++)
-      RR_NOp[p-no] = -1.0*(xx[p][p]+yy[p][p]+zz[p][p]);
+    for(int p=no; p < H_->nact(); p++) RR_NO->set(p-no, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
     RR_NO->print();
 
-    // SINGLE_ORB...
+    // (a) Build boolean vector that identifies active VNOs
+    int nvno=0;
+    std::vector<bool> Frozen(nv);
+    if(freeze_type_ == "SINGLE_ORB") { 
+      if(num_frzv_ > nv) throw PSIEXCEPTION("Chosen VNO index too large.");
+      Frozen[nv-num_frzv_] = true; // num_fvno = 1 means lowest occupation VNO
+      nvno = nv - 1;
+      frzvpi_[0]++; // Adjust number of frozen virtual orbitals
+    } 
+    else if(freeze_type_ == "MULTI_ORB") {
+      if(num_frzv_ > nv) throw PSIEXCEPTION("Too many frozen virtuals requested.");
+      for(int p=nv-num_frzv_; p < nv; p++) Frozen[p] = true;
+      nvno = nv - num_frzv_;
+      frzvpi_[0] += num_frzv_;
+    }
+    else if(freeze_type_ == "OCCUPATION") {
+      num_frzv_ = 0;
+      for(int p=0; p < nv; p++) { if(Pa_v->get(p) < occ_tol_) { Frozen[p] = true; num_frzv_++; } }
+      nvno = nv - num_frzv_;
+      frzvpi_[0] += num_frzv_;
+    }
+    else if(freeze_type_ == "SPATIAL") {
+      num_frzv_ = 0;
+      for(int p=0; p < nv; p++) { if(RR_NO->get(p) < spatial_tol_) { Frozen[p] = true; num_frzv_++; } }
+      nvno = nv - num_frzv_;
+      frzvpi_[0] += num_frzv_;
+    }
+    else if(freeze_type_ == "HYBRID") {
+      num_frzv_ = 0;
+      for(int p=0; p < nv; p++) { 
+        if(RR_NO->get(p) < spatial_tol_ && Pa_v->get(p) < occ_tol_) { Frozen[p] = true; num_frzv_++; }
+      }
+      nvno = nv - num_frzv_;
+      frzvpi_[0] += num_frzv_;
+    }
 
-    // MULTI_ORB...
+    // (b) Build T_VMO_2_FVNO matrix by copying over only active VNOs (columns) from full matrix
+    SharedMatrix T_VMO_2_FVNO(new Matrix("VMO to FVNO Transform", nv, nvno));
+    double **T_VMO_2_FVNOp = T_VMO_2_FVNO->pointer();
+    int FVNO_offset = 0;
+    for(int a=0; a < nv; a++) {
+      if(!Frozen[a]) {
+        for(int p=0; p < nv; p++) T_VMO_2_FVNOp[p][FVNO_offset] = T_VMO_2_VNOp[p][a];
+        FVNO_offset++;
+      }
+    }
+    if(FVNO_offset != nvno) throw PSIEXCEPTION("Number of active VNOs not equal user-chosen number.");
 
-    // OCCUPATION...
+    // (c) Build T_SO_2_FVNO = Cv * T_VMO_2_FVNO (SO x FVNO)
+    SharedMatrix T_SO_2_FVNO(new Matrix("SO to FVNO Transform", nso_, nvno));
+    T_SO_2_FVNO->gemm(false, false, 1.0, Cv, T_VMO_2_FVNO, 0.0);
 
-    // SPATIAL...
+    // (d) Fock_FVNO = T_VMO_2_FVNO^+ Fock_MO T_VMO_2_FVNO (FVNO x FVNO)
+    SharedMatrix Fock_FVNO(new Matrix("T_VMO_2_FVNO^+ Fock_MO T_VMO_2_FVNO", nvno, nvno));
+    double **Fock_FVNOp = Fock_FVNO->pointer();
+    double **fock = H_->fock_p();
+    for(int a=0; a < nvno; a++)
+      for(int b=0; b < nvno; b++)
+        for(int c=0; c < nv; c++)
+          Fock_FVNOp[a][b] += T_VMO_2_FVNOp[c][a] * fock[c+no][c+no] * T_VMO_2_FVNOp[c][b];
 
-    // HYBRID...
+    // (e) diagonalize Fock_FVNO matrix (evecs T_FVNO_2_semiFVNO)
+    SharedMatrix T_FVNO_2_semiFVNO(new Matrix("FVNO to semicanon. FVNO Transform", nvno, nvno));
+    SharedVector Fock_FVNO_eps(new Vector("semicanon. FVNO Eigenvalues", nvno));
+    Fock_FVNO->diagonalize(T_FVNO_2_semiFVNO, Fock_FVNO_eps);
 
-//    int nvno=0;
+    // (f) Build T_SO_2_semiFVNO = T_SO_2_FVNO * T_FVNO_2_semiFVNO
+    SharedMatrix T_SO_2_semiFVNO(new Matrix("SO to semicanon. FVNO Transform", nso_, nvno));
+    double **T_FVNO_2_semiFVNOp = T_FVNO_2_semiFVNO->pointer();
+    double **T_SO_2_FVNOp = T_SO_2_FVNO->pointer();
+    double **Cp = C->pointer();
+    for(int p=0; p < nso_; p++)
+      for(int a=0; a < nvno; a++) {
+        Cp[p][a+no+nfrzc_] = 0.0;
+        for(int b=0; b < nvno; b++)
+          Cp[p][a+no+nfrzc_] += T_SO_2_FVNOp[p][b] * T_FVNO_2_semiFVNOp[b][a];
+      }
+
+    // Copy new orbitals into necessary locations for subsequent CC computations
+    chkpt->wt_scf(Cp);
+    Process::environment.wavefunction()->Ca()->set(Cp);
+    Process::environment.wavefunction()->Cb()->set(Cp);
+
+  } // if(fvno_ == true)
+
+  return emp2;
+}
+
 //    SharedMatrix Y(new Matrix("FVNOs (SO, NO)", nso_, nv));
-
 
       // Re-organize the NOs to keep only active virtuals
 //      double *Pa_vp = Pa_v->pointer();
@@ -253,14 +328,7 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
 //          Cp[p][a+no+nfrzc_] += Yp[p][b] * FVV_Vp[b][a];
 //      }
 
-//    chkpt->wt_scf(Cp);
-//    Process::environment.wavefunction()->Ca()->set(Cp);
-//    Process::environment.wavefunction()->Cb()->set(Cp);
 
-  } // if(fvno_ == true)
-
-  return emp2;
-}
 
 double MBPT::mp3()
 {

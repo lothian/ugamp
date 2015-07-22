@@ -22,6 +22,7 @@ protected:
   bool do_diis_;        // use DIIS algorithms?
   bool ooc_;            // Use out-of-core algorithms?
   int dertype_;         // Gradient level
+  std::string freeze_type_; // Criteria for freezgin virtuals
   bool fvno_;           // Frozen-virtual NO calculation?
   int num_frzv_;        // Number of frozen-virtuals
   double occ_tol_;      // NO occupation-number threshold
