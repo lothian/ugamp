@@ -178,7 +178,7 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     // combination thereof?
 
     int nvno=0;
-    SharedMatrix Y(new Matrix("FVNOs (SO, NO)", nso_, nv));
+//    SharedMatrix Y(new Matrix("FVNOs (SO, NO)", nso_, nv));
     if(spatial_tol_ >= 0.0 && occ_tol_ >= 0.0) { 
       // Need <r^2> integrals for spatial tolerances
 
@@ -196,8 +196,6 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
       for(int p=0; p < nso_; p++)
         for(int a=0; a < nv; a++)
           SCFp[p][a+no+nfrzc_] = Xp[p][a];
-      newref->Ca()->set(SCFp);
-      newref->Cb()->set(SCFp);
 
       // Use the new reference to generate the NO-basis r^2 integrals
       boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref));
@@ -205,52 +203,52 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
       double **xx = RR->prop_p(0,0);
       double **yy = RR->prop_p(1,1);
       double **zz = RR->prop_p(2,2);
-      outfile->Printf("MO#  <r^2>\n");
+      outfile->Printf("NO#  <r^2>\n");
       for(int p=no; p < H_->nact(); p++)
         outfile->Printf("%d %8.4f\n", p-no, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
 
       // Re-organize the NOs to keep only active virtuals
-      double *Pa_vp = Pa_v->pointer();
-      double **Pa_Vp = Pa_V->pointer();
-      double **Yp = Y->pointer();
-      for(int p=no; p < H_->nact(); p++) {
-        if((-1.0*(xx[p][p]+yy[p][p]+zz[p][p])) > spatial_tol_ || Pa_vp[p] > occ_tol_) {
-          for(int q=0; q < nso_; q++) Yp[q][nvno] = Xp[q][p-no];
-          nvno++;
-        }
-      }
+ //     double *Pa_vp = Pa_v->pointer();
+//      double **Pa_Vp = Pa_V->pointer();
+//      double **Yp = Y->pointer();
+//      for(int p=no; p < H_->nact(); p++) {
+//        if((-1.0*(xx[p][p]+yy[p][p]+zz[p][p])) > spatial_tol_ || Pa_vp[p] > occ_tol_) {
+//          for(int q=0; q < nso_; q++) Yp[q][nvno] = Xp[q][p-no];
+//          nvno++;
+//        }
+//      }
     }
 
     outfile->Printf("\n# Active Virtual NOs  = %d\n", nvno);
     outfile->Printf(  "# Deleted Virtual NOs = %d\n", nv - nvno);
 
     // Transform VV Fock matrix to NO space
-    SharedMatrix FVV_NO(new Matrix("Y^+ * FVV_MO * Y", nvno, nvno));
-    double **FVV_NOp = FVV_NO->pointer();
-    double **Pa_Vp = Pa_V->pointer();
-    double **fock = H_->fock_p();
-    for(int a=0; a < nvno; a++)
-      for(int b=0; b < nvno; b++)
-        for(int c=0; c < nv; c++)
-          FVV_NOp[a][b] += fock[c+no][c+no] * Yp[c][a] * Yp[c][b];
+//    SharedMatrix FVV_NO(new Matrix("Y^+ * FVV_MO * Y", nvno, nvno));
+//    double **FVV_NOp = FVV_NO->pointer();
+//    double **Pa_Vp = Pa_V->pointer();
+//    double **fock = H_->fock_p();
+//    for(int a=0; a < nvno; a++)
+//      for(int b=0; b < nvno; b++)
+//        for(int c=0; c < nv; c++)
+//          FVV_NOp[a][b] += fock[c+no][c+no] * Yp[c][a] * Yp[c][b];
 
-    SharedMatrix FVV_V(new Matrix("VV NO Fock Matrix Eigenvectors", nvno, nvno));
-    SharedVector FVV_v(new Vector("VV NO Fock Matrix Eigenvalues", nvno));
-    FVV_NO->diagonalize(FVV_V, FVV_v);
+//    SharedMatrix FVV_V(new Matrix("VV NO Fock Matrix Eigenvectors", nvno, nvno));
+//    SharedVector FVV_v(new Vector("VV NO Fock Matrix Eigenvalues", nvno));
+//    FVV_NO->diagonalize(FVV_V, FVV_v);
 
     // FVV_V transforms from truncated NOV to truncated semicanonical NOV
-    double **FVV_Vp = FVV_V->pointer();
-    double **Cp = C->pointer();
-    for(int p=0; p < nso_; p++)
-      for(int a=0; a < nvno; a++) {
-        Cp[p][a+no+nfrzc_] = 0.0;
-        for(int b=0; b < nvno; b++)
-          Cp[p][a+no+nfrzc_] += Yp[p][b] * FVV_Vp[b][a];
-      }
+//    double **FVV_Vp = FVV_V->pointer();
+//    double **Cp = C->pointer();
+//    for(int p=0; p < nso_; p++)
+//      for(int a=0; a < nvno; a++) {
+//        Cp[p][a+no+nfrzc_] = 0.0;
+//        for(int b=0; b < nvno; b++)
+//          Cp[p][a+no+nfrzc_] += Yp[p][b] * FVV_Vp[b][a];
+//      }
 
-    chkpt->wt_scf(Cp);
-    Process::environment.wavefunction()->Ca()->set(Cp);
-    Process::environment.wavefunction()->Cb()->set(Cp);
+//    chkpt->wt_scf(Cp);
+//    Process::environment.wavefunction()->Ca()->set(Cp);
+//    Process::environment.wavefunction()->Cb()->set(Cp);
   }
 
   return emp2;
