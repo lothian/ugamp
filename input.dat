@@ -29,14 +29,14 @@ set {
 #  spatial_tol 9.0
 }
 
-energy('fno-ccsd')
-#energy('ugamp', wfn='mp2')
-#psi4.set_global_option('WFN', 'CCSD')
-#mints = psi4.MintsHelper()
-#mints.integrals()
-#psi4.transqt2()
-#psi4.ccsort()
-#psi4.ccenergy()
+#energy('fno-ccsd')
+energy('ugamp', wfn='mp2')
+psi4.set_global_option('WFN', 'CCSD')
+mints = psi4.MintsHelper()
+mints.integrals()
+psi4.transqt2()
+psi4.ccsort()
+psi4.ccenergy()
 
 #table = Table(rows=("\# Frozen Virtuals"), cols=("Unperturbed", "Canonical"))
 
