@@ -7,7 +7,7 @@
 
 namespace psi {
 
-Perturbation::Perturbation(std::string op, boost::shared_ptr<Wavefunction> ref)
+Perturbation::Perturbation(std::string op, boost::shared_ptr<Wavefunction> ref, bool full_virtual_space)
 {
   operator_ = op;
 
@@ -16,15 +16,30 @@ Perturbation::Perturbation(std::string op, boost::shared_ptr<Wavefunction> ref)
   int nso = ref->nso();
   int nfzc = ref->nfrzc();
   int nfzv = 0;
-  for(int i=0; i < ref->nirrep(); i++)
-    nfzv += ref->frzvpi()[i];
+  std::vector<int> frzvpi(ref->nirrep());
+  if(!full_virtual_space)
+    for(int i=0; i < ref->nirrep(); i++) { frzvpi[i] = ref->frzvpi()[i]; nfzv += ref->frzvpi()[i]; }
+  else 
+    for(int i=0; i < ref->nirrep(); i++) frzvpi[i] = 0;
   nact_ = nmo - nfzc - nfzv;
+
+  outfile->Printf("\n");
+  outfile->Printf("\t\t\t**************************\n");
+  outfile->Printf("\t\t\t*      PERTURBATION      *\n");
+  outfile->Printf("\t\t\t**************************\n");
+  outfile->Printf("\n");
+
+  outfile->Printf("\tNMO    = %d\n", nmo);
+  outfile->Printf("\tNSO    = %d\n", nso);
+  outfile->Printf("\tNFZC   = %d\n", nfzc);
+  outfile->Printf("\tNFZV   = %d\n", nfzv);
+  outfile->Printf("\tNACT   = %d\n", nact_);
 
   int *mo_offset = init_int_array(ref->nirrep()); // Pitzer offsets
   for(int h=1; h < ref->nirrep(); h++) mo_offset[h] = mo_offset[h-1] + ref->nmopi()[h-1];
 
   int *map = init_int_array(nmo); // Translates from Pitzer (including frozen docc) to QT
-  reorder_qt((int *) ref->doccpi(), (int *) ref->soccpi(), (int *) ref->frzcpi(), (int *) ref->frzvpi(),
+  reorder_qt((int *) ref->doccpi(), (int *) ref->soccpi(), (int *) ref->frzcpi(), (int *) &frzvpi[0],
              map, (int *) ref->nmopi(), ref->nirrep());
 
   // Symmetry info
@@ -84,8 +99,8 @@ Perturbation::Perturbation(std::string op, boost::shared_ptr<Wavefunction> ref)
     prop_[i] = block_matrix(nact_, nact_);
     for(int hl=0; hl < ref->nirrep(); hl++) {
       int hr = hl ^ prop_irreps[i];
-      for(int p=ref->frzcpi()[hl]; p < (ref->nmopi()[hl]-ref->frzvpi()[hl]); p++) {
-        for(int q=ref->frzcpi()[hr]; q < (ref->nmopi()[hr]-ref->frzvpi()[hr]); q++) {
+      for(int p=ref->frzcpi()[hl]; p < (ref->nmopi()[hl]-frzvpi[hl]); p++) {
+        for(int q=ref->frzcpi()[hr]; q < (ref->nmopi()[hr]-frzvpi[hr]); q++) {
           int P = map[p+mo_offset[hl]]; int Q = map[q+mo_offset[hr]];
           prop_[i][P-nfzc][Q-nfzc] = C[p+mo_offset[hl]][q+mo_offset[hr]];
         }

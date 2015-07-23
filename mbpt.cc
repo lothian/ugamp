@@ -43,18 +43,11 @@ MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamilton
   outfile->Printf("\tDIIS                 = %s\n", do_diis_ ? "Yes" : "No");
   outfile->Printf("\tOut-of-core          = %s\n", ooc_ ? "Yes" : "No");
   outfile->Printf("\tDertype              = %d\n", dertype_);
-  outfile->Printf("\tFrozen-Virtual NO    = %d\n", fvno_);
+  outfile->Printf("\tFrozen-Virtual NO    = %s\n", fvno_ ? "Yes" : "No");
+  outfile->Printf("\tFreeze Type          = %s\n", freeze_type_.c_str());
   outfile->Printf("\tNO Occupation Cutoff = %3.1e\n", occ_tol_);
   outfile->Printf("\tNO <r^2> Cutoff      = %3.1e\n", spatial_tol_);
-  outfile->Printf("\tNo. FVNOs            = %d\n", num_frzv_);
-  if(occ_tol_ >= 0.0 && spatial_tol_ >= 0.0) 
-    outfile->Printf("\tDeleting FVNOs based on both occupation numbers and spatial extent.\n");
-  else if(occ_tol_ >= 0.0 && spatial_tol_ < 0.0) 
-    outfile->Printf("\tDeleting FVNOs based on occupation numbers.\n");
-  else if(occ_tol_ < 0.0 && spatial_tol_ >= 0.0) 
-    outfile->Printf("\tDeleting FVNOs based on user input and spatial extent.\n");
-  else if(occ_tol_ < 0.0 && spatial_tol_ < 0.0) 
-    outfile->Printf("\tDeleting FVNOs based on user input.\n");
+  outfile->Printf("\t#/Index FVNO         = %d\n", num_frzv_);
 
   set_reference_wavefunction(reference);
   copy(reference);
@@ -190,7 +183,7 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
         SCFp[p][a+no+nfrzc_] = T_SO_2_VNOp[p][a];
 
     // Use the new reference to generate the NO-basis r^2 integrals
-    boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref));
+    boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref, true));
 
     SharedVector RR_NO(new Vector("NO <R^2> Values", nv));
     double **xx = RR->prop_p(0,0);
@@ -235,7 +228,10 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
       frzvpi_[0] = num_frzv_;
     }
 
-    outfile->Printf("Number of frozen virtual orbitals: %d\n", num_frzv_);
+    if(freeze_type_ == "SINGLE_ORB")
+      outfile->Printf("Index of frozen virtual orbital: %d\n", num_frzv_);
+    else
+      outfile->Printf("Number of frozen virtual orbitals: %d\n", num_frzv_);
     outfile->Printf("Number of active virtual orbitals: %d\n", nvno);
 
     // (b) Build T_VMO_2_FVNO matrix by copying over only active VNOs (columns) from full matrix
@@ -287,9 +283,13 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     chkpt->wt_scf(Cp);
     Process::environment.wavefunction()->Ca()->set(Cp);
     Process::environment.wavefunction()->Cb()->set(Cp);
+
     chkpt->wt_frzvpi(frzvpi_);
     Process::environment.wavefunction()->set_frzvpi(frzvpi_);
-    Process::environment.options.set_global_array_int("FROZEN_UOCC", frzvpi_[0], NULL);
+    if(Process::environment.options["FROZEN_UOCC"].size() == 0)
+      Process::environment.options["FROZEN_UOCC"].add(0);
+    else
+      Process::environment.options["FROZEN_UOCC"][0].assign(frzvpi_[0]);
 
   } // if(fvno_ == true)
 

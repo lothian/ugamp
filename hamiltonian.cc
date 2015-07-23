@@ -28,6 +28,19 @@ std::vector<boost::shared_ptr<MOSpace> > spaces, bool full_virtual_space)
 
   int nact = nact_;
 
+  outfile->Printf("\n");
+  outfile->Printf("\t\t\t**************************\n");
+  outfile->Printf("\t\t\t*                        *\n");
+  outfile->Printf("\t\t\t*       HAMILTONIAN      *\n");
+  outfile->Printf("\t\t\t*                        *\n");
+  outfile->Printf("\t\t\t**************************\n");
+  outfile->Printf("\n");
+
+  outfile->Printf("\tNMO    = %d\n", nmo_);
+  outfile->Printf("\tNFZC   = %d\n", nfzc_);
+  outfile->Printf("\tNFZV   = %d\n", nfzv_);
+  outfile->Printf("\tNACT   = %d\n", nact_);
+
   // Prepare Fock matrix in MO basis
   SharedMatrix Fa = ref->Fa()->clone();
   SharedMatrix Ca = ref->Ca();
