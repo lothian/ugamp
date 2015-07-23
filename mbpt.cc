@@ -206,25 +206,25 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
       if(num_frzv_ > nv) throw PSIEXCEPTION("Chosen VNO index too large.");
       Frozen[nv-num_frzv_] = true; // num_frzv = 1 means lowest occupation VNO
       nvno = (num_frzv_ == 0) ? nv : nv - 1; // in case the user set num_frzv_ = 0, so no frozen orbs
-      frzvpi_[0] += (num_frzv_ == 0) ? 0 : 1;
+      frzvpi_[0] = (num_frzv_ == 0) ? 0 : 1;
     } 
     else if(freeze_type_ == "MULTI_ORB") {
       if(num_frzv_ > nv) throw PSIEXCEPTION("Too many frozen virtuals requested.");
       for(int p=nv-num_frzv_; p < nv; p++) Frozen[p] = true;
       nvno = nv - num_frzv_;
-      frzvpi_[0] += num_frzv_;
+      frzvpi_[0] = num_frzv_;
     }
     else if(freeze_type_ == "OCCUPATION") {
       num_frzv_ = 0;
       for(int p=0; p < nv; p++) { if(Pab_eps->get(p) < occ_tol_) { Frozen[p] = true; num_frzv_++; } }
       nvno = nv - num_frzv_;
-      frzvpi_[0] += num_frzv_;
+      frzvpi_[0] = num_frzv_;
     }
     else if(freeze_type_ == "SPATIAL") {
       num_frzv_ = 0;
       for(int p=0; p < nv; p++) { if(RR_NO->get(p) < spatial_tol_) { Frozen[p] = true; num_frzv_++; } }
       nvno = nv - num_frzv_;
-      frzvpi_[0] += num_frzv_;
+      frzvpi_[0] = num_frzv_;
     }
     else if(freeze_type_ == "HYBRID") {
       num_frzv_ = 0;
@@ -232,7 +232,7 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
         if(RR_NO->get(p) < spatial_tol_ && Pab_eps->get(p) < occ_tol_) { Frozen[p] = true; num_frzv_++; }
       }
       nvno = nv - num_frzv_;
-      frzvpi_[0] += num_frzv_;
+      frzvpi_[0] = num_frzv_;
     }
 
     outfile->Printf("Number of frozen virtual orbitals: %d\n", num_frzv_);
