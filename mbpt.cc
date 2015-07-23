@@ -204,9 +204,9 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
     std::vector<bool> Frozen(nv);
     if(freeze_type_ == "SINGLE_ORB") { 
       if(num_frzv_ > nv) throw PSIEXCEPTION("Chosen VNO index too large.");
-      Frozen[nv-num_frzv_] = true; // num_fvno = 1 means lowest occupation VNO
-      nvno = nv - 1;
-      frzvpi_[0]++;
+      Frozen[nv-num_frzv_] = true; // num_frzv = 1 means lowest occupation VNO
+      nvno = (num_frzv_ == 0) ? nv : nv - 1; // in case the user set num_frzv_ = 0, so no frozen orbs
+      frzvpi_[0] += (num_frzv_ == 0) ? 0 : 1;
     } 
     else if(freeze_type_ == "MULTI_ORB") {
       if(num_frzv_ > nv) throw PSIEXCEPTION("Too many frozen virtuals requested.");

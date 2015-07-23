@@ -21,9 +21,10 @@ set {
 #  omega [589, nm]
 #  gauge both
   fvno true
-  freeze_type occupation
-  occ_tol 1e-3
-  occ_tolerance 1e-3
+  freeze_type single_orb
+  num_frzv 0
+#  occ_tol 1e-3
+#  occ_tolerance 1e-3
 #  num_frzv 1
 #  frozen_uocc [0]
 #  spatial_tol 9.0
@@ -37,6 +38,8 @@ mints.integrals()
 psi4.transqt2()
 psi4.ccsort()
 psi4.ccenergy()
+
+#energy('ccsd')
 
 #table = Table(rows=("\# Frozen Virtuals"), cols=("Unperturbed", "Canonical"))
 
