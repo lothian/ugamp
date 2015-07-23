@@ -265,13 +265,11 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
         for(int c=0; c < nv; c++)
           Fock_FVNOp[a][b] += T_VMO_2_FVNOp[c][a] * fock[c+no][c+no] * T_VMO_2_FVNOp[c][b];
       }
-    Fock_FVNO->print();
 
     // (e) diagonalize Fock_FVNO matrix (evecs T_FVNO_2_semiFVNO)
     SharedMatrix T_FVNO_2_semiFVNO(new Matrix("FVNO to semicanon. FVNO Transform", nvno, nvno));
     SharedVector Fock_FVNO_eps(new Vector("semicanon. FVNO Eigenvalues", nvno));
     Fock_FVNO->diagonalize(T_FVNO_2_semiFVNO, Fock_FVNO_eps);
-    Fock_FVNO_eps->print();
 
     // (f) Build T_SO_2_semiFVNO = T_SO_2_FVNO * T_FVNO_2_semiFVNO
     SharedMatrix T_SO_2_semiFVNO(new Matrix("SO to semicanon. FVNO Transform", nso_, nvno));
