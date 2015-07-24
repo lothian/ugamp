@@ -11,48 +11,15 @@
 
 namespace psi {
 
-MBPT::MBPT(boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamiltonian> H, Options &options, boost::shared_ptr<PSIO> psio) : Wavefunction(options, psio)
+MBPT::MBPT(std::string wfn, boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamiltonian> H, 
+Options& options, boost::shared_ptr<PSIO> psio, bool fvno) : Wavefunction(options, psio)
 {
-  outfile->Printf("\n");
-  outfile->Printf("\t\t\t**************************\n");
-  outfile->Printf("\t\t\t*                        *\n");
-  outfile->Printf("\t\t\t*         UGA-MP         *\n");
-  outfile->Printf("\t\t\t*                        *\n");
-  outfile->Printf("\t\t\t**************************\n");
-  outfile->Printf("\n");
-
-  if(options.get_str("REFERENCE") != "RHF")
-    throw PSIEXCEPTION("Only for use with RHF references determinants.");
-
-  wfn_ = options.get_str("WFN");
-  convergence_ = options.get_double("R_CONVERGENCE");
-  maxiter_ = options.get_int("MAXITER");
-  do_diis_ = options.get_bool("DIIS");
-  ooc_ = options.get_bool("OOC");
-  if(options.get_str("DERTYPE") == "NONE") dertype_ = 0;
-  else if(options.get_str("DERTYPE") == "FIRST") dertype_ = 1;
-  freeze_type_ = options.get_str("FREEZE_TYPE");
-  fvno_ = options.get_bool("FVNO");
-  num_frzv_ = options.get_int("NUM_FRZV");
-  occ_tol_ = options.get_double("OCC_TOL");
-  spatial_tol_ = options.get_double("SPATIAL_TOL");
-
-  outfile->Printf("\tWave function        = %s\n", wfn_.c_str());
-  outfile->Printf("\tMaxiter              = %d\n", maxiter_);
-  outfile->Printf("\tConvergence          = %3.1e\n", convergence_);
-  outfile->Printf("\tDIIS                 = %s\n", do_diis_ ? "Yes" : "No");
-  outfile->Printf("\tOut-of-core          = %s\n", ooc_ ? "Yes" : "No");
-  outfile->Printf("\tDertype              = %d\n", dertype_);
-  outfile->Printf("\tFrozen-Virtual NO    = %s\n", fvno_ ? "Yes" : "No");
-  outfile->Printf("\tFreeze Type          = %s\n", freeze_type_.c_str());
-  outfile->Printf("\tNO Occupation Cutoff = %3.1e\n", occ_tol_);
-  outfile->Printf("\tNO <r^2> Cutoff      = %3.1e\n", spatial_tol_);
-  outfile->Printf("\t#/Index FVNO         = %d\n", num_frzv_);
+  wfn_ = wfn;
 
   set_reference_wavefunction(reference);
   copy(reference);
 
-  if(fvno_)  // need full virtual space, because all we're doing is computing VNOs
+  if(fvno)  // need full virtual space, because all we're doing is computing VNOs
     for(int i=0; i < nirrep_; i++) frzvpi_[i] = 0;
 
   int nfrzv = 0;
@@ -132,14 +99,12 @@ MBPT::~MBPT()
 
 double MBPT::compute_energy() { return 0.0; }
 
-double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
+double MBPT::mp2()
 {
   int no = no_;
   int nv = nv_;
   double ****L = H_->L_p();
-
   double ****t2_1 = t2_1_;
-  double ****l2_1 = l2_1_;
 
   double emp2 = 0.0;
   for(int i=0; i < no; i++)
@@ -148,196 +113,8 @@ double MBPT::mp2(boost::shared_ptr<Chkpt> chkpt)
         for(int b=0; b < nv; b++)
           emp2 += t2_1[i][j][a][b] * L[i][j][a+no][b+no];
 
-  // Compute virtual natural orbitals
-  if(fvno_ == true) {
-    if(nirrep() > 1)
-      throw PSIEXCEPTION("You must add\n\n\tsymmetry c1\n\nto the molecule{} block to compute FVNOs.");
-
-    SharedMatrix Pa(new Matrix("MP2 VV Density", nv, nv));
-    double **Pap = Pa->pointer();
-    for(int a=0; a < nv; a++)
-      for(int b=0; b < nv; b++)
-        for(int i=0; i < no; i++)
-          for(int j=0; j < no; j++)
-            for(int c=0; c < nv; c++)
-              Pap[a][b] += l2_1[i][j][a][c] * t2_1[i][j][b][c];
-
-    SharedMatrix T_VMO_2_VNO(new Matrix("MP2 VV Density Eigenvectors", nv, nv));
-    SharedVector Pab_eps(new Vector("MP2 VV Density Eigenvalues", nv));
-    Pa->diagonalize(T_VMO_2_VNO, Pab_eps, descending);
-    Pab_eps->print();
-
-    // Compute the spatial extent of each NO, regardless of FREEZE_TYPE
-    SharedMatrix C = Ca();
-    SharedMatrix Cv = Ca_subset("SO", "ACTIVE_VIR");
-    SharedMatrix T_SO_2_VNO(new Matrix("Cv * T_VMO_2_VNO", nso_, nv));
-    T_SO_2_VNO->gemm(false, false, 1.0, Cv, T_VMO_2_VNO, 0.0);
-
-    // Create a new reference wfn replacing its MOs with the NOs
-    boost::shared_ptr<Wavefunction> newref = reference_;
-    SharedMatrix SCF = newref->Ca();
-    double **SCFp = SCF->pointer();
-    double **T_SO_2_VNOp = T_SO_2_VNO->pointer();
-    for(int p=0; p < nso_; p++)
-      for(int a=0; a < nv; a++)
-        SCFp[p][a+no+nfrzc_] = T_SO_2_VNOp[p][a];
-
-    // Use the new reference to generate the NO-basis r^2 integrals
-    boost::shared_ptr<Perturbation> RR(new Perturbation("RR", newref, true));
-
-    SharedVector RR_NO(new Vector("NO <R^2> Values", nv));
-    double **xx = RR->prop_p(0,0);
-    double **yy = RR->prop_p(1,1);
-    double **zz = RR->prop_p(2,2);
-    for(int p=no; p < H_->nact(); p++) RR_NO->set(p-no, -1.0*(xx[p][p]+yy[p][p]+zz[p][p]));
-    RR_NO->print();
-
-    // (a) Build boolean vector that identifies active VNOs
-    int nvno=0;
-    std::vector<bool> Frozen(nv);
-    if(freeze_type_ == "SINGLE_ORB") { 
-      if(num_frzv_ > nv) throw PSIEXCEPTION("Chosen VNO index too large.");
-      Frozen[nv-num_frzv_] = true; // num_frzv = 1 means lowest occupation VNO
-      nvno = (num_frzv_ == 0) ? nv : nv - 1; // in case the user set num_frzv_ = 0, so no frozen orbs
-      frzvpi_[0] = (num_frzv_ == 0) ? 0 : 1;
-    } 
-    else if(freeze_type_ == "MULTI_ORB") {
-      if(num_frzv_ > nv) throw PSIEXCEPTION("Too many frozen virtuals requested.");
-      for(int p=nv-num_frzv_; p < nv; p++) Frozen[p] = true;
-      nvno = nv - num_frzv_;
-      frzvpi_[0] = num_frzv_;
-    }
-    else if(freeze_type_ == "OCCUPATION") {
-      num_frzv_ = 0;
-      for(int p=0; p < nv; p++) { if(Pab_eps->get(p) < occ_tol_) { Frozen[p] = true; num_frzv_++; } }
-      nvno = nv - num_frzv_;
-      frzvpi_[0] = num_frzv_;
-    }
-    else if(freeze_type_ == "SPATIAL") {
-      num_frzv_ = 0;
-      for(int p=0; p < nv; p++) { if(RR_NO->get(p) < spatial_tol_) { Frozen[p] = true; num_frzv_++; } }
-      nvno = nv - num_frzv_;
-      frzvpi_[0] = num_frzv_;
-    }
-    else if(freeze_type_ == "HYBRID") {
-      num_frzv_ = 0;
-      for(int p=0; p < nv; p++) { 
-        if(RR_NO->get(p) < spatial_tol_ && Pab_eps->get(p) < occ_tol_) { Frozen[p] = true; num_frzv_++; }
-      }
-      nvno = nv - num_frzv_;
-      frzvpi_[0] = num_frzv_;
-    }
-
-    if(freeze_type_ == "SINGLE_ORB")
-      outfile->Printf("Index of frozen virtual orbital: %d\n", num_frzv_);
-    else
-      outfile->Printf("Number of frozen virtual orbitals: %d\n", num_frzv_);
-    outfile->Printf("Number of active virtual orbitals: %d\n", nvno);
-
-    // (b) Build T_VMO_2_FVNO matrix by copying over only active VNOs (columns) from full matrix
-    SharedMatrix T_VMO_2_FVNO(new Matrix("VMO to FVNO Transform", nv, nvno));
-    double **T_VMO_2_FVNOp = T_VMO_2_FVNO->pointer();
-    double **T_VMO_2_VNOp = T_VMO_2_VNO->pointer();
-    int FVNO_offset = 0;
-    for(int a=0; a < nv; a++) {
-      if(!Frozen[a]) {
-        for(int p=0; p < nv; p++) T_VMO_2_FVNOp[p][FVNO_offset] = T_VMO_2_VNOp[p][a];
-        FVNO_offset++;
-      }
-    }
-    if(FVNO_offset != nvno) throw PSIEXCEPTION("Number of active VNOs not equal user-chosen number.");
-
-    // (c) Build T_SO_2_FVNO = Cv * T_VMO_2_FVNO (SO x FVNO)
-    SharedMatrix T_SO_2_FVNO(new Matrix("SO to FVNO Transform", nso_, nvno));
-    T_SO_2_FVNO->gemm(false, false, 1.0, Cv, T_VMO_2_FVNO, 0.0);
-
-    // (d) Fock_FVNO = T_VMO_2_FVNO^+ Fock_MO T_VMO_2_FVNO (FVNO x FVNO)
-    SharedMatrix Fock_FVNO(new Matrix("T_VMO_2_FVNO^+ Fock_MO T_VMO_2_FVNO", nvno, nvno));
-    double **Fock_FVNOp = Fock_FVNO->pointer();
-    double **fock = H_->fock_p();
-    for(int a=0; a < nvno; a++)
-      for(int b=0; b < nvno; b++) {
-        Fock_FVNOp[a][b] = 0.0;
-        for(int c=0; c < nv; c++)
-          Fock_FVNOp[a][b] += T_VMO_2_FVNOp[c][a] * fock[c+no][c+no] * T_VMO_2_FVNOp[c][b];
-      }
-
-    // (e) diagonalize Fock_FVNO matrix (evecs T_FVNO_2_semiFVNO)
-    SharedMatrix T_FVNO_2_semiFVNO(new Matrix("FVNO to semicanon. FVNO Transform", nvno, nvno));
-    SharedVector Fock_FVNO_eps(new Vector("semicanon. FVNO Eigenvalues", nvno));
-    Fock_FVNO->diagonalize(T_FVNO_2_semiFVNO, Fock_FVNO_eps);
-
-    // (f) Build T_SO_2_semiFVNO = T_SO_2_FVNO * T_FVNO_2_semiFVNO
-    SharedMatrix T_SO_2_semiFVNO(new Matrix("SO to semicanon. FVNO Transform", nso_, nvno));
-    double **T_FVNO_2_semiFVNOp = T_FVNO_2_semiFVNO->pointer();
-    double **T_SO_2_FVNOp = T_SO_2_FVNO->pointer();
-    double **Cp = C->pointer();
-    for(int p=0; p < nso_; p++)
-      for(int a=0; a < nvno; a++) {
-        Cp[p][a+no+nfrzc_] = 0.0;
-        for(int b=0; b < nvno; b++)
-          Cp[p][a+no+nfrzc_] += T_SO_2_FVNOp[p][b] * T_FVNO_2_semiFVNOp[b][a];
-      }
-
-    // Copy new info into necessary locations for subsequent CC computations
-    chkpt->wt_scf(Cp);
-    Process::environment.wavefunction()->Ca()->set(Cp);
-    Process::environment.wavefunction()->Cb()->set(Cp);
-
-    chkpt->wt_frzvpi(frzvpi_);
-    Process::environment.wavefunction()->set_frzvpi(frzvpi_);
-    if(Process::environment.options["FROZEN_UOCC"].size() == 0)
-      Process::environment.options["FROZEN_UOCC"].add(0);
-    else
-      Process::environment.options["FROZEN_UOCC"][0].assign(frzvpi_[0]);
-
-  } // if(fvno_ == true)
-
   return emp2;
 }
-
-//    SharedMatrix Y(new Matrix("FVNOs (SO, NO)", nso_, nv));
-
-      // Re-organize the NOs to keep only active virtuals
-//      double *Pa_vp = Pa_v->pointer();
-//      double **Pa_Vp = Pa_V->pointer();
-//      double **Yp = Y->pointer();
-//      for(int p=no; p < H_->nact(); p++) {
-//        if((-1.0*(xx[p][p]+yy[p][p]+zz[p][p])) > spatial_tol_ || Pa_vp[p] > occ_tol_) {
-//          for(int q=0; q < nso_; q++) Yp[q][nvno] = Xp[q][p-no];
-//          nvno++;
-//        }
-//      }
-//    }
-
-//    outfile->Printf("\n# Active Virtual NOs  = %d\n", nvno);
-//    outfile->Printf(  "# Deleted Virtual NOs = %d\n", nv - nvno);
-
-    // Transform VV Fock matrix to NO space
-//    SharedMatrix FVV_NO(new Matrix("Y^+ * FVV_MO * Y", nvno, nvno));
-//    double **FVV_NOp = FVV_NO->pointer();
-//    double **Pa_Vp = Pa_V->pointer();
-//    double **fock = H_->fock_p();
-//    for(int a=0; a < nvno; a++)
-//      for(int b=0; b < nvno; b++)
-//        for(int c=0; c < nv; c++)
-//          FVV_NOp[a][b] += fock[c+no][c+no] * Yp[c][a] * Yp[c][b];
-
-//    SharedMatrix FVV_V(new Matrix("VV NO Fock Matrix Eigenvectors", nvno, nvno));
-//    SharedVector FVV_v(new Vector("VV NO Fock Matrix Eigenvalues", nvno));
-//    FVV_NO->diagonalize(FVV_V, FVV_v);
-
-    // FVV_V transforms from truncated NOV to truncated semicanonical NOV
-//    double **FVV_Vp = FVV_V->pointer();
-//    double **Cp = C->pointer();
-//    for(int p=0; p < nso_; p++)
-//      for(int a=0; a < nvno; a++) {
-//        Cp[p][a+no+nfrzc_] = 0.0;
-//        for(int b=0; b < nvno; b++)
-//          Cp[p][a+no+nfrzc_] += Yp[p][b] * FVV_Vp[b][a];
-//      }
-
-
 
 double MBPT::mp3()
 {
@@ -649,6 +426,25 @@ double MBPT::mp4()
   outfile->Printf("\tEMP4-Q (corr)  = %20.15f\n", emp4_q);
 
   return emp4_s + emp4_d + emp4_t + emp4_q;
+}
+
+SharedMatrix MBPT::DVV()
+{
+  int no = no_;
+  int nv = nv_;
+  double ****l2_1 = l2_1_;
+  double ****t2_1 = t2_1_;
+
+  SharedMatrix D(new Matrix("MP2 VV Density", nv, nv));
+  double **Dp = D->pointer();
+  for(int a=0; a < nv; a++)
+    for(int b=0; b < nv; b++)
+      for(int i=0; i < no; i++)
+        for(int j=0; j < no; j++)
+          for(int c=0; c < nv; c++)
+            Dp[a][b] += l2_1[i][j][a][c] * t2_1[i][j][b][c];
+
+  return D;
 }
 
 } // psi

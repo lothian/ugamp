@@ -10,23 +10,12 @@ namespace psi {
 
 class MBPT: public Wavefunction {
 public:
-  MBPT(boost::shared_ptr<Wavefunction> reference,
-                 boost::shared_ptr<Hamiltonian> H,
-                 Options &options, boost::shared_ptr<PSIO> psio);
+  MBPT(std::string wfn, boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamiltonian> H,
+                 Options& options, boost::shared_ptr<PSIO> psio, bool fvno);
   virtual ~MBPT();
 
 protected:
   std::string wfn_;     // wfn type (MP2, MP3, etc.)
-  double convergence_;  // conv. on RMS residual change between iterations
-  int maxiter_;         // maximum number of iterations
-  bool do_diis_;        // use DIIS algorithms?
-  bool ooc_;            // Use out-of-core algorithms?
-  int dertype_;         // Gradient level
-  std::string freeze_type_; // Criteria for freezgin virtuals
-  bool fvno_;           // Frozen-virtual NO calculation?
-  int num_frzv_;        // Number of frozen-virtuals
-  double occ_tol_;      // NO occupation-number threshold
-  double spatial_tol_;  // NO <r^2> threshold
 
   int no_;  // Number of active occupied MOs
   int nv_;  // Number of active virtual MOs
@@ -48,9 +37,14 @@ protected:
 public:
   double compute_energy();
 
-  double mp2(boost::shared_ptr<Chkpt>);
+  double mp2();
   double mp3();
   double mp4();
+
+  SharedMatrix DVV(); // compute the VV block of the MP2 onepdm
+
+  int nv() { return nv_; }
+  int no() { return no_; }
 }; // MBPT
 
 } // psi
