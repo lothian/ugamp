@@ -9,7 +9,7 @@
 #include <libchkpt/chkpt.h>
 #include "perturbation.h"
 
-namespace psi {
+namespace psi { namespace ugamp {
 
 MBPT::MBPT(std::string wfn, boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamiltonian> H, 
 Options& options, boost::shared_ptr<PSIO> psio, bool fvno) : Wavefunction(options, psio)
@@ -447,4 +447,4 @@ SharedMatrix MBPT::DVV()
   return D;
 }
 
-} // psi
+}} // psi::ugamp

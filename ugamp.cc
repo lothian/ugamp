@@ -240,5 +240,5 @@ PsiReturnType ugamp(Options& options)
   return Success;
 }
 
-}} // End namespaces
+}} // End psi::ugamp
 

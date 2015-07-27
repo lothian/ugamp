@@ -5,7 +5,7 @@
 #include <libmints/mints.h>
 #include "libparallel/ParallelPrinter.h"
 
-namespace psi {
+namespace psi { namespace ugamp {
 
 Perturbation::Perturbation(std::string op, boost::shared_ptr<Wavefunction> ref, bool full_virtual_space)
 {
@@ -196,4 +196,4 @@ bool Perturbation::quadrupole(std::string op)
   else return false;
 }
 
-} // psi
+}} // psi::ugamp

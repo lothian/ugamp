@@ -14,7 +14,7 @@
 // RR = quadrupole
 // 
 
-namespace psi {
+namespace psi { namespace ugamp {
 
 class Perturbation {
 public:
@@ -45,6 +45,6 @@ private:
   bool quadrupole(std::string op);
 };
 
-} // psi
+}} // psi::ugamp
 
 #endif // PERTURBATION_H
