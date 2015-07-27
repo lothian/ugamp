@@ -6,7 +6,7 @@
 #include <boost/shared_ptr.hpp>
 #include <libchkpt/chkpt.h>
 
-namespace psi {
+namespace psi { namespace ugamp {
 
 class MBPT: public Wavefunction {
 public:
@@ -47,6 +47,6 @@ public:
   int no() { return no_; }
 }; // MBPT
 
-} // psi
+}} // psi::ugamp
 
 #endif // MBPT_H
