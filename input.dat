@@ -40,10 +40,10 @@ set {
 #psi4.ccsort()
 #psi4.ccenergy()
 #
-#table = Table(rows=("\# Frozen MO"), cols=("Canonical", "Unperturbed"))
-table = Table(rows=("\# Frozen MO"), cols=("Unperturbed"))
+#table = Table(rows=("\# Frozen MO"), cols=("LEN", "MVG"))
+table = Table(rows=("\# Frozen MO"), cols=("Polarizability"))
 
-for x in range(0, 15):
+for x in range(15, 31):
 #    set frozen_uocc [$x]
 #    property('ccsd',properties=['polarizability'])
 #    canpolar = get_variable("CCSD Dipole Polarizability")*3.0
@@ -62,9 +62,11 @@ for x in range(0, 15):
     psi4.cclambda()
     psi4.ccresponse()
     fvnopolar = get_variable("CCSD Dipole Polarizability")*3.0
+#    len = get_variable("CCSD Specific Rotation (LEN)")
+#    mvg = get_variable("CCSD Specific Rotation (MVG)")
     clean()
-#    table[x] = [canpolar, fvnopolar]
     table[x] = [fvnopolar]
+#    table[x] = [len, mvg]
 
 print_out(str(table))
 
