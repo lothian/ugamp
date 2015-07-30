@@ -15,23 +15,25 @@ symmetry c1
 set {
   freeze_core true
   basis aug-cc-pVDZ
+  maxiter 1000
+  restart false
 #  r_convergence 1e-15
 #  e_convergence 1e-15
-  maxiter 1000
 #  omega [589, nm]
 #  gauge both
-  fvno true
-  freeze_type single_orb
-  restart false
 #  frozen_uocc [0]
-#  num_frzv 3
+#  num_frzv 0
 #  occ_tol 1e-3
 #  occ_tolerance 1e-3
 #  spatial_tol 9.0
 }
 
-#energy('fno-ccsd')
+#energy('ccsd')
 
+#set fvmo true
+#set freeze_type multi_orb
+#set multi_orb diplen
+#set num_frzv 5
 #energy('ugamp',wfn='mp2')
 #psi4.set_global_option('WFN', 'CCSD')
 #mints = psi4.MintsHelper()
@@ -41,18 +43,18 @@ set {
 #psi4.ccenergy()
 #
 #table = Table(rows=("\# Frozen MO"), cols=("LEN", "MVG"))
-table = Table(rows=("\# Frozen MO"), cols=("Polarizability"))
+table = Table(rows=("\# Frozen NO"), cols=("Polarizability"))
 
-for x in range(15, 31):
-#    set frozen_uocc [$x]
-#    property('ccsd',properties=['polarizability'])
-#    canpolar = get_variable("CCSD Dipole Polarizability")*3.0
-#    clean()
+for x in range(0, 31):
+    set fvno true
+    set freeze_type multi_orb
+    set multi_orb diplen
     set num_frzv $x   
     energy('ugamp',wfn='mp2')
     psi4.set_global_option('WFN', 'CCSD')
     psi4.set_global_option('DERTYPE', 'RESPONSE')
     psi4.set_global_option('PROPERTY', 'POLARIZABILITY')
+#    psi4.set_global_option('PROPERTY', 'ROTATION')
     mints = psi4.MintsHelper()
     mints.integrals()
     psi4.transqt2()
@@ -61,13 +63,12 @@ for x in range(15, 31):
     psi4.cchbar()
     psi4.cclambda()
     psi4.ccresponse()
-    fvnopolar = get_variable("CCSD Dipole Polarizability")*3.0
+    polar = get_variable("CCSD Dipole Polarizability")*3.0
 #    len = get_variable("CCSD Specific Rotation (LEN)")
 #    mvg = get_variable("CCSD Specific Rotation (MVG)")
     clean()
-    table[x] = [fvnopolar]
+    table[x] = [polar]
 #    table[x] = [len, mvg]
 
 print_out(str(table))
-
 
