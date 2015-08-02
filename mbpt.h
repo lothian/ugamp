@@ -11,7 +11,7 @@ namespace psi { namespace ugamp {
 class MBPT: public Wavefunction {
 public:
   MBPT(std::string wfn, boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamiltonian> H,
-                 Options& options, boost::shared_ptr<PSIO> psio, bool fvno);
+                 Options& options, boost::shared_ptr<PSIO> psio, bool ovov_only, bool fvno);
   virtual ~MBPT();
 
 protected:
@@ -22,6 +22,8 @@ protected:
 
   boost::shared_ptr<Hamiltonian> H_; // integrals and Fock matrix
   boost::shared_ptr<Wavefunction> reference_;
+
+  bool ovov_only_;
   
   // Energy denominators
   double **D1_;

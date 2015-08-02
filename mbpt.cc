@@ -12,7 +12,7 @@
 namespace psi { namespace ugamp {
 
 MBPT::MBPT(std::string wfn, boost::shared_ptr<Wavefunction> reference, boost::shared_ptr<Hamiltonian> H, 
-Options& options, boost::shared_ptr<PSIO> psio, bool fvno) : Wavefunction(options, psio)
+Options& options, boost::shared_ptr<PSIO> psio, bool ovov_only, bool fvno) : Wavefunction(options, psio)
 {
   wfn_ = wfn;
 
@@ -21,6 +21,8 @@ Options& options, boost::shared_ptr<PSIO> psio, bool fvno) : Wavefunction(option
 
   if(fvno)  // need full virtual space, because all we're doing is computing VNOs
     for(int i=0; i < nirrep_; i++) frzvpi_[i] = 0;
+
+  ovov_only_ = ovov_only;
 
   int nfrzv = 0;
   no_ = nv_ = 0;
@@ -81,8 +83,14 @@ Options& options, boost::shared_ptr<PSIO> psio, bool fvno) : Wavefunction(option
     for(int j=0; j < no; j++)
       for(int a=0; a < nv; a++)
         for(int b=0; b < nv; b++) {
-          t2_1_[i][j][a][b] = ints[i][j][a+no][b+no]/D2_[i][j][a][b];
-          l2_1_[i][j][a][b] = 2.0 * L[i][j][a+no][b+no]/D2_[i][j][a][b];
+          if(ovov_only_) {
+            t2_1_[i][j][a][b] = ints[i][j][a][b]/D2_[i][j][a][b];
+            l2_1_[i][j][a][b] = 2.0 * L[i][j][a][b]/D2_[i][j][a][b];
+          }
+          else {
+            t2_1_[i][j][a][b] = ints[i][j][a+no][b+no]/D2_[i][j][a][b];
+            l2_1_[i][j][a][b] = 2.0 * L[i][j][a+no][b+no]/D2_[i][j][a][b];
+          }
         }
 }
 
@@ -110,8 +118,12 @@ double MBPT::mp2()
   for(int i=0; i < no; i++)
     for(int j=0; j < no; j++)
       for(int a=0; a < nv; a++)
-        for(int b=0; b < nv; b++)
-          emp2 += t2_1[i][j][a][b] * L[i][j][a+no][b+no];
+        for(int b=0; b < nv; b++) {
+          if(ovov_only_) 
+            emp2 += t2_1[i][j][a][b] * L[i][j][a][b];
+          else
+            emp2 += t2_1[i][j][a][b] * L[i][j][a+no][b+no];
+        }
 
   return emp2;
 }

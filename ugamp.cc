@@ -75,9 +75,16 @@ PsiReturnType ugamp(Options& options)
 
   std::vector<boost::shared_ptr<MOSpace> > spaces;
   spaces.push_back(MOSpace::all);
+  spaces.push_back(MOSpace::occ);
+  spaces.push_back(MOSpace::vir);
 
-  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(psio, ref, spaces, options.get_bool("FVNO")));
-  boost::shared_ptr<MBPT> mbpt(new MBPT(wfn, ref, H, options, psio, options.get_bool("FVNO")));
+
+  bool ovov_only = false;
+  if(wfn == "MP2") ovov_only = true;
+  if(fvno || fvmo) ovov_only = true;
+
+  boost::shared_ptr<Hamiltonian> H(new Hamiltonian(psio, ref, spaces, ovov_only, options.get_bool("FVNO")));
+  boost::shared_ptr<MBPT> mbpt(new MBPT(wfn, ref, H, options, psio, ovov_only, options.get_bool("FVNO")));
 
   boost::shared_ptr<Chkpt> chkpt(new Chkpt(psio, PSIO_OPEN_OLD));
 

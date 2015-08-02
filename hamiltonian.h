@@ -9,7 +9,7 @@ namespace psi { namespace ugamp {
 
 class Hamiltonian {
 public:
-  Hamiltonian(boost::shared_ptr<PSIO>, boost::shared_ptr<Wavefunction>, std::vector<boost::shared_ptr<MOSpace> >, bool);
+  Hamiltonian(boost::shared_ptr<PSIO>, boost::shared_ptr<Wavefunction>, std::vector<boost::shared_ptr<MOSpace> >, bool, bool);
   virtual ~Hamiltonian();
 //  Hamiltonian(const boost::shared_ptr<Hamiltonian> &H);
 
@@ -23,6 +23,10 @@ protected:
   int nact_;
   int nfzc_;
   int nfzv_;
+  int no_;
+  int nv_;
+
+  bool ovov_only_;
 
   double **fock_;
   double ****ints_;
