@@ -26,9 +26,9 @@ int read_options(std::string name, Options& options)
 
     options.add_bool("FVNO", false); // compute MP2 frozen-virtual NOs
     options.add_bool("FVMO", false); // freeze canonical virtual MOs
-    options.add_str("FREEZE_TYPE", "MULTI_ORB", "MULTI_ORB SINGLE_ORB OCCUPATION SPATIAL DIPLEN HYBRID");
+    options.add_str("FREEZE_TYPE", "MULTI_ORB", "MULTI_ORB SINGLE_ORB OCCUPATION SPATIAL DIPLEN HYBRID MAGLEN");
     options.add_int("NUM_FRZV", 0); // number of FVNOs or which single orb to delete
-    options.add_str("MULTI_ORB", "OCCUPATION", "OCCUPATION ENERGY DIPLEN SPATIAL");
+    options.add_str("MULTI_ORB", "OCCUPATION", "OCCUPATION ENERGY DIPLEN SPATIAL MAGLEN");
     options.add_double("OCC_TOL", 0.0); // delete FVNOs below cutoff
     options.add_double("SPATIAL_TOL", 0.0); // only delete FVNOs below R^2 cutoff
   }
@@ -149,6 +149,24 @@ PsiReturnType ugamp(Options& options)
     for(int p=nv-1; p>=0; p--)
       outfile->Printf("  %4d:  %10.7f\n", p+1, Mu_MO->get(p));
 
+    // Compute the magnetic-dipole length of each MO
+    boost::shared_ptr<Perturbation> L(new Perturbation("L", ref, true));
+    SharedVector L_MO(new Vector("MO L_a Values", nv));
+    double **Lx = L->prop_p(0);
+    double **Ly = L->prop_p(1);
+    double **Lz = L->prop_p(2);
+    for(int a=no; a < H->nact(); a++) {
+      double val1=0.0;
+      for(int i=0; i < no; i++) {
+        val1 += sqrt(Lx[i][a]*Lx[i][a] + Ly[i][a]*Ly[i][a] + Lz[i][a]*Lz[i][a]);
+      }
+      L_MO->set(a-no, val1);
+    }
+    L_MO->print();
+    outfile->Printf("\t%s\n", L_MO->name().c_str());
+    for(int p=nv-1; p>=0; p--)
+      outfile->Printf("  %4d:  %10.7f\n", p+1, L_MO->get(p));
+
     int nvno=0;
     std::vector<bool> Frozen(nv);
     if(freeze_type == "SINGLE_ORB") {
@@ -164,16 +182,19 @@ PsiReturnType ugamp(Options& options)
       if(multi_orb == "ENERGY") { // no need for sort, just mark highest-energy orbs Frozen
         for(int p=nv-num_frzv; p < nv; p++) Frozen[p] = true;
       }
-      else if(multi_orb == "DIPLEN" || multi_orb == "SPATIAL") {
+      else if(multi_orb == "DIPLEN" || multi_orb == "SPATIAL" || multi_orb == "MAGLEN") {
         std::vector<double> sortvec(nv);
         if(multi_orb == "DIPLEN") 
           for(int a=0; a < nv; a++) sortvec[a] = Mu_MO->get(a);
+        else if(multi_orb == "MAGLEN") 
+          for(int a=0; a < nv; a++) sortvec[a] = L_MO->get(a);
         else if(multi_orb == "SPATIAL")
           for(int a=0; a < nv; a++) sortvec[a] = RR_MO->get(a);
         sort(sortvec.begin(), sortvec.end()); // sort to ascending; freeze smaller-valued orbs
         for(int a=0; a < num_frzv; a++) {
           for(int b=0; b < nv; b++) {
             if(multi_orb == "DIPLEN" && sortvec[a] == Mu_MO->get(b)) Frozen[b] = true;
+            else if(multi_orb == "MAGLEN" && sortvec[a] == L_MO->get(b)) Frozen[b] = true;
             else if(sortvec[a] == RR_MO->get(b)) Frozen[b] = true;
           }
         }
@@ -300,6 +321,23 @@ PsiReturnType ugamp(Options& options)
 
     XMu_NO->print();
 
+    // Compute magnetic-dipole length of each NO, as well
+    boost::shared_ptr<Perturbation> L(new Perturbation("L", newref, true));
+    SharedVector L_NO(new Vector("NO L_a Values", nv));
+    double **Lx = L->prop_p(0);
+    double **Ly = L->prop_p(1);
+    double **Lz = L->prop_p(2);
+    for(int a=no; a < H->nact(); a++) {
+      double val1=0.0;
+      for(int i=0; i < no; i++)
+        val1 += sqrt(Lx[i][a]*Lx[i][a] + Ly[i][a]*Ly[i][a] + Lz[i][a]*Lz[i][a]);
+      L_NO->set(a-no, val1);
+    }
+    L_NO->print();
+    outfile->Printf("\t%s\n", L_NO->name().c_str());
+    for(int p=nv-1; p>=0; p--)
+      outfile->Printf("  %4d:  %10.7f\n", p+1, L_NO->get(p));
+
     // (a) Build boolean vector that identifies active VNOs
     int nvno=0;
     std::vector<bool> Frozen(nv);
@@ -316,16 +354,19 @@ PsiReturnType ugamp(Options& options)
       if(multi_orb == "OCCUPATION") { // no need for sort, just mark lowest-occupation orbs Frozen
         for(int p=nvno; p < nv; p++) Frozen[p] = true;
       }
-      else if(multi_orb == "DIPLEN" || multi_orb == "SPATIAL") {
+      else if(multi_orb == "DIPLEN" || multi_orb == "SPATIAL" || multi_orb == "MAGLEN") {
         std::vector<double> sortvec(nv);
         if(multi_orb == "DIPLEN")
           for(int a=0; a < nv; a++) sortvec[a] = Mu_NO->get(a);
+        else if(multi_orb == "MAGLEN")
+          for(int a=0; a < nv; a++) sortvec[a] = L_NO->get(a);
         else if(multi_orb == "SPATIAL")
           for(int a=0; a < nv; a++) sortvec[a] = RR_NO->get(a);
         sort(sortvec.begin(), sortvec.end()); // sort to ascending; freeze smaller-valued orbs
         for(int a=0; a < num_frzv; a++) {
           for(int b=0; b < nv; b++) {
             if(multi_orb == "DIPLEN" && sortvec[a] == Mu_NO->get(b)) Frozen[b] = true;
+            else if(multi_orb == "MAGLEN" && sortvec[a] == L_NO->get(b)) Frozen[b] = true;
             else if(sortvec[a] == RR_NO->get(b)) Frozen[b] = true;
           }
         }
